@@ -71,61 +71,84 @@ def sb(method, yol, **kw):
     return requests.request(method, f"{SB}/rest/v1/{yol}", headers={"apikey": SBK, "Authorization": f"Bearer {SBK}"} if not SBK.startswith("sb_") else {"apikey": SBK}, timeout=30, **kw)
 
 
+def gonder(a, eslesen, konu, baslik_html):
+    """Bir aboneye e-posta ve push gönderir. (eposta_ok, push_ok) döner."""
+    iptal = f"{SITE}/?iptal={a['token']}"
+    e_ok = p_ok = False
+    if a.get("eposta") and BREVO:
+        satir = "".join(
+            f'<tr><td style="padding:12px 0;border-bottom:1px solid #E1E5EB"><div style="font-size:13px;color:#4A505B">{i.get("kurum") or ""}</div>'
+            f'<a href="{SITE}/#/ilan/{i["id"]}" style="font-size:16px;font-weight:600;color:#1B1E23;text-decoration:none">{i["baslik"]}</a>'
+            f'<div style="font-size:13px;color:#4A505B">{"✅ Uygunsun" if d == "UYGUN" else "⚠️ Şartları kontrol et"}'
+            f'{" · " + str(i["kadro"]) + " kadro" if i.get("kadro") else ""}{" · Son başvuru " + i["sonBasvuru"] if i.get("sonBasvuru") else ""}</div></td></tr>'
+            for i, d in eslesen[:25])
+        html = (f'<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1B1E23"><h2 style="margin:0 0 4px">{baslik_html}</h2>'
+                f'<p style="color:#4A505B;margin:0 0 8px">Profiline göre seçildi. Başvurmadan önce şartları resmî ilan metninden doğrula.</p><table width="100%">{satir}</table>'
+                f'<p style="margin-top:16px"><a href="{SITE}/#/uygun" style="background:#1B1E23;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Tümünü gör</a></p>'
+                f'<p style="font-size:12px;color:#767D89">Aday Memur bağımsız bir sitedir, kamu kurumlarıyla bağlantısı yoktur. <a href="{iptal}">Abonelikten çık</a> · Yapım: selcukyus</p></div>')
+        rr = requests.post("https://api.brevo.com/v3/smtp/email", timeout=30, headers={"api-key": BREVO}, json={
+            "sender": {"name": "Aday Memur", "email": GONDEREN}, "to": [{"email": a["eposta"]}],
+            "subject": konu, "htmlContent": html, "headers": {"List-Unsubscribe": f"<{iptal}>"}})
+        e_ok = rr.ok
+        if not rr.ok:
+            print("Brevo hata:", rr.status_code, rr.text[:300])
+    if a.get("push") and VAPID:
+        i0 = eslesen[0][0]
+        try:
+            webpush(subscription_info=a["push"], vapid_private_key=VAPID, vapid_claims={"sub": f"mailto:{GONDEREN}"}, ttl=86400,
+                    data=json.dumps({"title": konu[:80], "body": i0["baslik"][:120],
+                                     "url": f"{SITE}/#/" + ("uygun" if len(eslesen) > 1 else f"ilan/{i0['id']}")}))
+            p_ok = True
+        except WebPushException as e:
+            if e.response is not None and e.response.status_code in (404, 410):
+                sb("PATCH", f"aboneler?id=eq.{a['id']}", json={"push": None})
+            print("Push hata:", e)
+    return e_ok, p_ok
+
+
 def main(eski_yol, yeni_yol):
     yeni = json.load(open(yeni_yol, encoding="utf-8"))["ilanlar"]
+    bugun = (datetime.now(timezone.utc) + timedelta(hours=3)).date().isoformat()
+    aktif = [i for i in yeni if (i.get("sonBasvuru") or "9999") >= bugun]
     try:
         eski = {x["id"] for x in json.load(open(eski_yol, encoding="utf-8"))["ilanlar"]}
     except Exception:
-        print("Önceki veri yok; ilk çalışma, bildirim gönderilmedi.")
-        return
-    bugun = (datetime.now(timezone.utc) + timedelta(hours=3)).date().isoformat()
-    taze = [i for i in yeni if i["id"] not in eski and not any(a in eski for a in i.get("ayni") or []) and (i.get("sonBasvuru") or "9999") >= bugun]
+        eski = None
+    taze = [] if eski is None else [i for i in aktif if i["id"] not in eski and not any(x in eski for x in i.get("ayni") or [])]
     print(f"Yeni ilan: {len(taze)}")
-    if not taze or not SB or not SBK:
+    if not SB or not SBK:
+        print("Supabase ayarı eksik.")
         return
-    r = sb("GET", "aboneler?select=id,eposta,push,profil,token&order=olusturma.desc")
-    r.raise_for_status()
-    gorulen, eposta_n, push_n = set(), 0, 0
+    r = sb("GET", "aboneler?select=*&order=olusturma.desc")
+    if not r.ok:
+        print("Supabase okuma hatası:", r.status_code, r.text[:300])
+        return
+    gorulen, sayac = set(), [0, 0, 0]
     for a in r.json():
         anah = a.get("eposta") or (a.get("push") or {}).get("endpoint")
         if not anah or anah in gorulen:
             continue
         gorulen.add(anah)
-        eslesen = [(i, d) for i in taze if (d := uygun(i, a.get("profil") or {}))]
-        if not eslesen:
+        profil = a.get("profil") or {}
+        if a.get("hosgeldin") is False:
+            # Yeni abone: bildirimlerin çalıştığını göstermek için güncel uygun ilanları gönder
+            es = [(i, d) for i in aktif if (d := uygun(i, profil))]
+            es.sort(key=lambda x: (x[1] != "UYGUN", x[0].get("sonBasvuru") or "9999"))
+            if es:
+                ok = gonder(a, es, f"Bildirimler açık: sana uygun {len(es)} güncel ilan", f"Bildirimler açık. Şu an sana uygun {len(es)} ilan var")
+            else:
+                ok = gonder(a, [(aktif[0], "KONTROL")] if aktif else [], "Aday Memur bildirimleri açık", "Bildirimler açık. Sana uygun yeni ilan çıktığında haber vereceğiz") if aktif else (False, False)
+            sb("PATCH", f"aboneler?id=eq.{a['id']}", json={"hosgeldin": True})
+            sayac[2] += 1
             continue
-        eslesen.sort(key=lambda x: x[1] != "UYGUN")
-        iptal = f"{SITE}/?iptal={a['token']}"
-        if a.get("eposta") and BREVO:
-            satir = "".join(
-                f'<tr><td style="padding:12px 0;border-bottom:1px solid #E1E5EB"><div style="font-size:13px;color:#4A505B">{i.get("kurum") or ""}</div>'
-                f'<a href="{SITE}/#/ilan/{i["id"]}" style="font-size:16px;font-weight:600;color:#1B1E23;text-decoration:none">{i["baslik"]}</a>'
-                f'<div style="font-size:13px;color:#4A505B">{"✅ Uygunsun" if d == "UYGUN" else "⚠️ Şartları kontrol et"}'
-                f'{" · " + str(i["kadro"]) + " kadro" if i.get("kadro") else ""}{" · Son başvuru " + i["sonBasvuru"] if i.get("sonBasvuru") else ""}</div></td></tr>'
-                for i, d in eslesen[:25])
-            html = (f'<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1B1E23"><h2 style="margin:0 0 4px">Sana uygun {len(eslesen)} yeni kamu ilanı</h2>'
-                    f'<p style="color:#4A505B;margin:0 0 8px">Profiline göre seçildi. Başvurmadan önce şartları resmî ilan metninden doğrula.</p><table width="100%">{satir}</table>'
-                    f'<p style="margin-top:16px"><a href="{SITE}/#/uygun" style="background:#1B1E23;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Tümünü gör</a></p>'
-                    f'<p style="font-size:12px;color:#767D89">Aday Memur bağımsız bir sitedir, kamu kurumlarıyla bağlantısı yoktur. <a href="{iptal}">Abonelikten çık</a> · Yapım: selcukyus</p></div>')
-            rr = requests.post("https://api.brevo.com/v3/smtp/email", timeout=30, headers={"api-key": BREVO}, json={
-                "sender": {"name": "Aday Memur", "email": GONDEREN}, "to": [{"email": a["eposta"]}],
-                "subject": f"{len(eslesen)} yeni ilan sana uygun: {eslesen[0][0]['baslik'][:60]}", "htmlContent": html,
-                "headers": {"List-Unsubscribe": f"<{iptal}>"}})
-            eposta_n += rr.ok
-            if not rr.ok:
-                print("Brevo hata:", rr.status_code, rr.text[:200])
-        if a.get("push") and VAPID:
-            i0 = eslesen[0][0]
-            try:
-                webpush(subscription_info=a["push"], vapid_private_key=VAPID, vapid_claims={"sub": f"mailto:{GONDEREN}"}, ttl=86400,
-                        data=json.dumps({"title": f"{len(eslesen)} yeni ilan sana uygun" if len(eslesen) > 1 else (i0.get("kurum") or "Yeni ilan"),
-                                         "body": i0["baslik"][:120], "url": f"{SITE}/#/" + ("uygun" if len(eslesen) > 1 else f"ilan/{i0['id']}")}))
-                push_n += 1
-            except WebPushException as e:
-                if e.response is not None and e.response.status_code in (404, 410):
-                    sb("PATCH", f"aboneler?id=eq.{a['id']}", json={"push": None})
-                print("Push hata:", e)
-    print(f"E-posta: {eposta_n}, push: {push_n}")
+        es = [(i, d) for i in taze if (d := uygun(i, profil))]
+        if not es:
+            continue
+        es.sort(key=lambda x: x[1] != "UYGUN")
+        e_ok, p_ok = gonder(a, es, f"{len(es)} yeni ilan sana uygun: {es[0][0]['baslik'][:60]}", f"Sana uygun {len(es)} yeni kamu ilanı")
+        sayac[0] += e_ok
+        sayac[1] += p_ok
+    print(f"E-posta: {sayac[0]}, push: {sayac[1]}, hoş geldin: {sayac[2]}")
 
 
 if __name__ == "__main__":

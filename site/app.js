@@ -12,7 +12,7 @@ const yaz = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catc
 const kalan = s => { if (!s) return null; const d = new Date(s + "T23:59:59+03:00"); return Math.floor((d - Date.now()) / 864e5); };
 const tarih = s => s ? new Date(s).toLocaleDateString("tr-TR", {day:"numeric", month:"long", year:"numeric"}) : "";
 
-let ILANLAR = [], GUNCEL = "", profil = oku("am_profil", {egitim:"", bolum:"", puanlar:{}, iller:[]}), kayit = oku("am_kayit", []);
+let ILANLAR = [], GUNCEL = "", profil = Object.assign({egitim:"", bolum:"", puanlar:{}, iller:[]}, oku("am_profil", {})), kayit = oku("am_kayit", []);
 let filtre = {arama:"", tur:"", egitim:"", puanTuru:"", puan:"", il:"", siralama:"yeni"};
 
 // ---- Uygunluk (Android uygulamasıyla aynı mantık) ----
@@ -48,7 +48,7 @@ function uygunluk(i, p, detay) {
     if (bolumAnahtar(p.bolum).some(a => m.includes(a))) E("E", `${p.bolum} ilanda geçiyor`);
     else E("B", "Bölüm şartını ilan metninden kontrol et");
   }
-  if (p.iller.length) {
+  if ((p.iller||[]).length) {
     if (!i.iller.length) E("E", "Türkiye geneli / çok ilde kadro");
     else if (i.iller.some(x => p.iller.includes(x))) E("E", i.iller.map(x=>IL[x]).join(", "));
     else E("H", `Kadro yeri: ${i.iller.map(x=>IL[x]).join(", ")}`);
@@ -96,7 +96,7 @@ function vIlanlar() {
   <select id="f-il">${secenek(ilObj, filtre.il, "Tüm iller")}</select>
   <select id="f-puanTuru">${secenek(Object.fromEntries(PUAN.map(p=>[p,"KPSS "+p])), filtre.puanTuru, "Puan türü")}</select>
   <input id="f-puan" type="number" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
-  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div><div id="liste"></div>`;
+  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!oku("am_abone", null) ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Profilini oluştur, e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/profil">Bildirimleri aç</a></div>` : ""}<div id="liste"></div>`;
   const ciz = () => { const l = filtrele(ILANLAR); $("#liste").innerHTML = l.length ? l.slice(0,300).map(i => kart(i, profilVar() ? uygunluk(i, profil) : null)).join("") : `<p class="bos">Bu filtrelere uyan ilan yok.</p>`; };
   for (const k of Object.keys(filtre)) { const el = $("#f-" + k); if (el) el.addEventListener("input", () => { filtre[k] = el.value; ciz(); }); }
   ciz();
@@ -145,8 +145,9 @@ const sb = (yol, govde) => fetch(`${AM.SUPABASE_URL}/rest/v1/${yol}`, {method:"P
 const b64 = s => { const p = "=".repeat((4 - s.length % 4) % 4); const r = atob((s + p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
 async function pushAboneligi() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+  if (Notification.permission === "denied") return null;
   const izin = await Notification.requestPermission(); if (izin !== "granted") return null;
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, r) => setTimeout(() => r(new Error("sw")), 8000))]);
   return (await reg.pushManager.getSubscription()) || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64(AM.VAPID_PUBLIC)});
 }
 function vProfil() {
@@ -161,25 +162,28 @@ function vProfil() {
   <div class="panel"><h2>Yeni ilan bildirimi</h2><p>Sana uygun yeni bir ilan yayımlandığında e-posta ve tarayıcı/telefon bildirimi gönderelim.</p>
   <div class="arac"><input id="p-eposta" type="email" placeholder="E-posta adresin" value="${esc(ab?.eposta||"")}" style="flex:1;min-width:220px">
   <button class="b ana" id="p-bildirim">${ab ? "Bildirim ayarlarını güncelle" : "Bildirimleri aç"}</button>${ab ? `<button class="b" id="p-kapat">Bildirimleri kapat</button>` : ""}</div>
-  <p class="not">E-posta istemiyorsan boş bırak; yalnızca anlık bildirim gelir. iPhone'da anlık bildirim için siteyi önce “Ana Ekrana Ekle” ile kur. Her e-postada abonelikten çıkma bağlantısı bulunur.</p><div class="durum" id="p-durum"></div></div>`;
+  <p class="not">E-posta istemiyorsan boş bırak; yalnızca anlık bildirim gelir. iPhone'da anlık bildirim için siteyi önce “Ana Ekrana Ekle” ile kur. Her e-postada abonelikten çıkma bağlantısı bulunur.</p><div class="durum" id="p-durum">${ab ? `✓ Bildirimler açık${ab.eposta ? " · " + esc(ab.eposta) : ""}${ab.push ? " · anlık bildirim" : ""}` : ""}</div></div>`;
   const oku_ = () => { const p = {egitim:$("#p-egitim").value, bolum:$("#p-bolum").value.trim(), puanlar:{}, iller:[...document.querySelectorAll(".iller input:checked")].map(x=>x.value)};
     document.querySelectorAll("[data-puan]").forEach(x => { if (x.value) p.puanlar[x.dataset.puan] = +x.value; }); return p; };
   const durum = m => $("#p-durum").textContent = m;
-  $("#p-kaydet").onclick = () => { profil = oku_(); yaz("am_profil", profil); durum("Profil kaydedildi. Bana Uygun sekmesine bakabilirsin."); };
-  $("#p-bildirim").onclick = async () => {
+  $("#p-kaydet").onclick = () => { profil = oku_(); yaz("am_profil", profil); durum("✓ Profil kaydedildi."); setTimeout(() => location.hash = "#/uygun", 600); };
+  const btn = $("#p-bildirim");
+  btn.onclick = async () => {
     profil = oku_(); yaz("am_profil", profil);
     const eposta = $("#p-eposta").value.trim();
     if (eposta && !/^\S+@\S+\.\S+$/.test(eposta)) return durum("E-posta adresini kontrol et.");
-    durum("Kaydediliyor…");
+    if (!eposta && Notification?.permission === "denied") return durum("Tarayıcı bildirimleri engelli. Adres çubuğundaki kilit simgesinden bildirimlere izin ver ya da e-posta adresini yaz.");
+    btn.disabled = true; durum("Kaydediliyor…");
     let push = null; try { push = await pushAboneligi(); } catch {}
-    if (!eposta && !push) return durum("Bildirim izni verilmedi. E-posta adresi girersen e-postayla haber veririz.");
-    const token = crypto.randomUUID();
-    const eski = oku("am_abone", null);
-    if (eski?.token) await sb("rpc/abonelik_iptal", {t: eski.token}).catch(()=>{});
-    const r = await sb("aboneler", {eposta: eposta || null, push: push ? push.toJSON() : null, profil, token}).catch(() => null);
-    if (!r || !r.ok) return durum("Kaydedilemedi, biraz sonra tekrar dene.");
-    yaz("am_abone", {eposta, token});
-    durum(`Bildirimler açık${eposta ? " · e-posta: " + eposta : ""}${push ? " · anlık bildirim: açık" : ""}.`);
+    if (!eposta && !push) { btn.disabled = false; return durum("Bildirim izni verilmedi. E-posta adresini yazarsan e-postayla haber veririz."); }
+    const token = crypto.randomUUID(), eski = oku("am_abone", null);
+    let r = null; try { r = await sb("aboneler", {eposta: eposta || null, push: push ? push.toJSON() : null, profil, token}); } catch {}
+    btn.disabled = false;
+    if (!r || !r.ok) { let m = ""; try { m = (await r.json()).message; } catch {} return durum("Kaydedilemedi" + (m ? ` (${m})` : "") + ". Biraz sonra tekrar dene."); }
+    if (eski?.token) sb("rpc/abonelik_iptal", {t: eski.token}).catch(()=>{});
+    yaz("am_abone", {eposta, token, push: !!push});
+    vProfil();
+    durum(`✓ Bildirimler açık${eposta ? ` · ${eposta} adresine ilk e-posta (sana uygun güncel ilanlar) 30 dakika içinde gelir; gelmezse Spam klasörüne bak` : ""}${push ? " · anlık bildirim açık" : (Notification?.permission === "denied" ? " · anlık bildirim tarayıcıda engelli" : "")}.`);
   };
   if ($("#p-kapat")) $("#p-kapat").onclick = async () => { const a = oku("am_abone", null); if (a?.token) await sb("rpc/abonelik_iptal", {t:a.token}).catch(()=>{});
     try { const reg = await navigator.serviceWorker.ready; (await reg.pushManager.getSubscription())?.unsubscribe(); } catch {}

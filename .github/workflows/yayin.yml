@@ -1,0 +1,56 @@
+# Resmî kaynakları tarar, siteyi ve veriyi GitHub Pages'e yayınlar, abonelere bildirim gönderir.
+name: Yayın ve bildirim
+
+on:
+  schedule:
+    - cron: "12,42 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: yayin
+  cancel-in-progress: false
+
+jobs:
+  yayin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r pipeline/requirements.txt pywebpush
+      - name: Önceki ilan listesi
+        run: curl -sf "$SITE_URL/data/ilanlar.json" -o /tmp/eski.json || echo '{}' > /tmp/eski.json
+      - name: İlanları topla
+        working-directory: pipeline
+        env:
+          STATE_URL: ${{ env.SITE_URL }}/data/_state.json.gz
+        run: python -m adaymemur --out ../_site --content ../content
+      - name: Site dosyaları
+        run: cp -r site/. _site/ && touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Bildirim gönder
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+        run: python notify/bildir.py /tmp/eski.json _site/data/ilanlar.json

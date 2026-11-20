@@ -1,0 +1,21 @@
+{
+  "guncelleme": "2026-11-16",
+  "kaynak": "ÖSYM 2027 Yılı Sınav Takvimi",
+  "kaynakUrl": "https://www.osym.gov.tr",
+  "uyari": "Tarihler ÖSYM'nin 28 Ekim 2026'da yayımladığı 2027 takvimine göredir; ÖSYM gerekli gördüğünde takvimi güncelleyebilir. Kesin bilgi için ÖSYM'yi kontrol et.",
+  "ogeler": [
+    { "id": "msu27-b", "sinav": "2027-MSÜ", "baslik": "MSÜ başvuruları", "tarih": "2027-01-13", "bitis": "2027-02-10", "tip": "basvuru" },
+    { "id": "yks27-b", "sinav": "2027-YKS", "baslik": "YKS başvuruları", "tarih": "2027-02-04", "bitis": "2027-03-02", "tip": "basvuru" },
+    { "id": "msu27-s", "sinav": "2027-MSÜ", "baslik": "MSÜ sınavı", "tarih": "2027-03-20", "tip": "sinav" },
+    { "id": "msu27-r", "sinav": "2027-MSÜ", "baslik": "MSÜ sonuçları", "tarih": "2027-04-21", "tip": "sonuc" },
+    { "id": "ags27-s", "sinav": "2027-MEB-AGS", "baslik": "MEB Akademi Giriş Sınavı", "tarih": "2027-05-08", "tip": "sinav" },
+    { "id": "yks27-s", "sinav": "2027-YKS", "baslik": "YKS (TYT, AYT, YDT)", "tarih": "2027-06-19", "bitis": "2027-06-20", "tip": "sinav" },
+    { "id": "kpss27-b", "sinav": "2027-KPSS", "baslik": "KPSS (A grubu) başvuruları", "tarih": "2027-07-08", "bitis": "2027-07-19", "tip": "basvuru" },
+    { "id": "dgs27-s", "sinav": "2027-DGS", "baslik": "Dikey Geçiş Sınavı", "tarih": "2027-07-18", "tip": "sinav" },
+    { "id": "yks27-r", "sinav": "2027-YKS", "baslik": "YKS sonuçları", "tarih": "2027-07-21", "tip": "sonuc" },
+    { "id": "kpss27-gygk", "sinav": "2027-KPSS", "baslik": "KPSS Genel Yetenek – Genel Kültür (lisans)", "tarih": "2027-09-12", "tip": "sinav" },
+    { "id": "kpss27-ab", "sinav": "2027-KPSS", "baslik": "KPSS Alan Bilgisi", "tarih": "2027-09-18", "bitis": "2027-09-19", "tip": "sinav" },
+    { "id": "kpss27-r", "sinav": "2027-KPSS", "baslik": "KPSS A grubu sonuçları", "tarih": "2027-10-13", "tip": "sonuc" },
+    { "id": "ales27-3", "sinav": "2027-ALES/3", "baslik": "ALES (3. oturum)", "tarih": "2027-11-28", "tip": "sinav" }
+  ]
+}

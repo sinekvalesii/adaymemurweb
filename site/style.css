@@ -1,0 +1,53 @@
+@font-face{font-family:Archivo;src:url(font/archivo_regular.ttf);font-weight:400;font-display:swap}
+@font-face{font-family:Archivo;src:url(font/archivo_semibold.ttf);font-weight:600;font-display:swap}
+@font-face{font-family:Archivo;src:url(font/archivo_extrabold.ttf);font-weight:800;font-display:swap}
+:root{--paper:#F4F6F9;--sheet:#fff;--ink:#1B1E23;--ink2:#4A505B;--ink3:#767D89;--line:#E1E5EB;--marker:#FFE45A;--form:#335C8C;--ok:#1E7B4D;--no:#B3261E;--warn:#9A6700}
+:root.koyu{--paper:#0F1115;--sheet:#171A1F;--ink:#ECEFF3;--ink2:#B4BAC4;--ink3:#8A919C;--line:#262A31;--marker:#F1D23A;--form:#96B8DE;--ok:#5CC48D;--no:#F28B82;--warn:#E5B94F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Archivo,system-ui,sans-serif}
+a{color:var(--form)}
+.ust{position:sticky;top:0;z-index:5;display:flex;gap:16px;align-items:center;padding:10px 20px;background:var(--paper);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.marka{display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);font-size:18px}
+.marka img{width:28px;height:28px}
+nav{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+nav a{padding:6px 12px;border-radius:999px;text-decoration:none;color:var(--ink2);font-weight:600}
+nav a.on{background:var(--ink);color:var(--paper)}
+#tema{border:1px solid var(--line);background:var(--sheet);color:var(--ink);border-radius:999px;width:36px;height:36px;cursor:pointer}
+main{max-width:980px;margin:0 auto;padding:20px}
+footer{max-width:980px;margin:20px auto 40px;padding:0 20px;color:var(--ink3);font-size:13px}
+h1{font-size:28px;font-weight:800;margin:4px 0 4px;letter-spacing:-.01em}
+.vurgu{background:linear-gradient(transparent 45%,var(--marker) 45%);color:inherit;padding:0 2px}
+:root.koyu .vurgu{background:var(--marker);color:#1B1E23;border-radius:4px}
+.alt{color:var(--ink2);margin:0 0 16px}
+.arac{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+input,select,button.b{font:inherit;color:var(--ink);background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+input[type=search]{flex:1;min-width:200px}
+button.b{cursor:pointer;font-weight:600}
+button.ana{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.kart{background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:block;color:inherit;text-decoration:none}
+.kart:hover{border-color:var(--ink3)}
+.ust1{display:flex;gap:10px;align-items:center}
+.logo{width:36px;height:36px;border-radius:10px;background:var(--paper);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--form);flex:none}
+.kurum{font-size:13px;color:var(--ink2)}
+.bas{font-weight:600;font-size:16px;margin:6px 0}
+.cipler{display:flex;gap:6px;flex-wrap:wrap}
+.cip{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--paper);color:var(--ink2)}
+.alt1{display:flex;justify-content:space-between;margin-top:8px;font-size:13px}
+.son{color:var(--ink2)}.son.acil{color:var(--no);font-weight:600}
+.etiket{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px}
+.e-UYGUN{background:#E5F4EC;color:var(--ok)}.e-KONTROL{background:#FFF4D6;color:var(--warn)}.e-DEGIL{background:#FDECEA;color:var(--no)}
+:root.koyu .e-UYGUN,:root.koyu .e-KONTROL,:root.koyu .e-DEGIL{background:var(--paper)}
+.bos{color:var(--ink3);text-align:center;padding:40px 0}
+.panel{background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.panel h2{margin:0 0 10px;font-size:18px}
+.izgara{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+label{display:block;font-size:13px;color:var(--ink2)}
+label input,label select{width:100%;margin-top:4px}
+.iller{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow:auto;padding:4px 0}
+.iller label{display:inline-flex;gap:4px;align-items:center;font-size:13px;color:var(--ink);background:var(--paper);padding:4px 8px;border-radius:8px}
+.gerekce{list-style:none;padding:0;margin:8px 0}
+.gerekce li{padding:4px 0}
+.metin{white-space:pre-wrap;font-size:14px;color:var(--ink2);max-height:420px;overflow:auto}
+.not{font-size:13px;color:var(--ink3)}
+.durum{margin-top:8px;font-weight:600}
+@media(max-width:640px){.ust{padding:8px 12px}nav a{padding:5px 9px;font-size:14px}main{padding:14px}h1{font-size:23px}}

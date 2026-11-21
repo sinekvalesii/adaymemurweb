@@ -96,7 +96,7 @@ function vIlanlar() {
   <select id="f-il">${secenek(ilObj, filtre.il, "Tüm iller")}</select>
   <select id="f-puanTuru">${secenek(Object.fromEntries(PUAN.map(p=>[p,"KPSS "+p])), filtre.puanTuru, "Puan türü")}</select>
   <input id="f-puan" type="number" inputmode="decimal" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
-  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!KULLANICI ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Ücretsiz hesap oluştur, yeni ilanı e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/kayit">Hesap oluştur</a></div>` : ""}<div id="liste"></div>`;
+  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!KULLANICI ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Ücretsiz hesap oluştur, yeni ilanı e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/kayit">Hesap oluştur</a></div>` : ""}<a class="play" href="#" data-play><span class="play-ikon">▶</span><span><small>Android uygulaması</small><b>Google Play’de</b></span><em>Yakında</em></a><div id="liste"></div>`;
   const ciz = () => { const l = filtrele(ILANLAR); $("#liste").innerHTML = l.length ? l.slice(0,300).map(i => kart(i, profilVar() ? uygunluk(i, profil) : null)).join("") : `<p class="bos">Bu filtrelere uyan ilan yok.</p>`; };
   for (const k of Object.keys(filtre)) { const el = $("#f-" + k); if (el) el.addEventListener("input", () => { filtre[k] = el.value; ciz(); }); }
   ciz();
@@ -194,7 +194,7 @@ function vGiris(mod = "giris") {
       ? await db.auth.signUp({email:v.eposta.trim(), password:v.sifre, options:{data:{ad:v.ad.trim(), soyad:v.soyad.trim(), telefon:telDuz(v.tel)}, emailRedirectTo: location.origin + location.pathname + "#/profil"}})
       : await db.auth.signInWithPassword({email:v.eposta.trim(), password:v.sifre});
     btn.disabled = false;
-    if (r.error) return durum(({"Invalid login credentials":"E-posta veya şifre hatalı.","User already registered":"Bu e-postayla zaten hesap var, giriş yap.","Email not confirmed":"E-postanı doğrulamadın. Gelen kutundaki bağlantıya tıkla."})[r.error.message] || r.error.message, 1);
+    if (r.error) return durum(({"Invalid login credentials":"E-posta veya şifre hatalı.","User already registered":"Bu e-postayla zaten hesap var, giriş yap.","Email not confirmed":"E-postanı doğrulamadın. Gelen kutundaki bağlantıya tıkla.","Email signups are disabled":"Kayıtlar şu an kapalı, biraz sonra tekrar dene."})[r.error.message] || r.error.message, 1);
     if (mod === "kayit" && !r.data.session) return durum("Hesabın oluşturuldu. E-postana gelen doğrulama bağlantısına tıkla, sonra giriş yap.");
     if (hatirla !== !!v.hatirla) return location.reload();
     await hesapYukle(); location.hash = "#/profil";
@@ -278,3 +278,14 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   if (q) return iptal(q);
   addEventListener("hashchange", yonlendir); yonlendir();
 })();
+
+// ---- Google Play ----
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-play]"); if (!a) return;
+  if (AM.PLAY_URL) { a.href = AM.PLAY_URL; a.target = "_blank"; return; }
+  e.preventDefault();
+  let t = document.querySelector(".yakinda");
+  if (!t) { t = document.createElement("div"); t.className = "yakinda"; document.body.appendChild(t); }
+  t.innerHTML = `<b>Yakında Google Play'de</b><span>Aday Memur Android uygulaması inceleme aşamasında. Yayınlandığında bu düğmeden indirebileceksin.</span>`;
+  t.classList.add("acik"); clearTimeout(t._z); t._z = setTimeout(() => t.classList.remove("acik"), 3500);
+});

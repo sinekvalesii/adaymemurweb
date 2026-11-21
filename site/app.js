@@ -96,13 +96,13 @@ function vIlanlar() {
   <select id="f-il">${secenek(ilObj, filtre.il, "Tüm iller")}</select>
   <select id="f-puanTuru">${secenek(Object.fromEntries(PUAN.map(p=>[p,"KPSS "+p])), filtre.puanTuru, "Puan türü")}</select>
   <input id="f-puan" type="number" inputmode="decimal" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
-  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!oku("am_abone", null) ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Profilini oluştur, e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/profil">Bildirimleri aç</a></div>` : ""}<div id="liste"></div>`;
+  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!KULLANICI ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Ücretsiz hesap oluştur, yeni ilanı e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/kayit">Hesap oluştur</a></div>` : ""}<div id="liste"></div>`;
   const ciz = () => { const l = filtrele(ILANLAR); $("#liste").innerHTML = l.length ? l.slice(0,300).map(i => kart(i, profilVar() ? uygunluk(i, profil) : null)).join("") : `<p class="bos">Bu filtrelere uyan ilan yok.</p>`; };
   for (const k of Object.keys(filtre)) { const el = $("#f-" + k); if (el) el.addEventListener("input", () => { filtre[k] = el.value; ciz(); }); }
   ciz();
 }
 function vUygun() {
-  if (!profilVar()) { $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1><div class="panel"><p>Öğrenim düzeyini, bölümünü ve KPSS puanını gir; başvurabileceğin ilanları şart şart karşılaştırarak listeleyelim.</p><a class="b ana" href="#/profil" style="display:inline-block;text-decoration:none;padding:9px 14px;border-radius:10px">Profilimi oluştur</a></div>`; return; }
+  if (!profilVar()) { $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1><div class="panel"><p>Hesap oluştur, öğrenim düzeyini, bölümünü ve KPSS puanını gir; başvurabileceğin ilanları şart şart karşılaştırarak listeleyelim ve yenileri çıktığında haber verelim.</p><a class="b ana" href="${KULLANICI ? "#/profil" : "#/kayit"}">${KULLANICI ? "Profilimi doldur" : "Ücretsiz hesap oluştur"}</a></div>`; return; }
   const r = ILANLAR.filter(i => { const k = kalan(i.sonBasvuru); return k === null || k >= 0; }).map(i => [i, uygunluk(i, profil)]).filter(x => x[1].durum !== "DEGIL").sort((a,b) => (a[1].durum===b[1].durum ? 0 : a[1].durum==="UYGUN" ? -1 : 1) || b[1].puan - a[1].puan);
   const uy = r.filter(x=>x[1].durum==="UYGUN").length;
   $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1><p class="alt">${uy} ilan doğrudan uygun · ${r.length-uy} ilanda şartları kontrol et · <a href="#/profil">profili düzenle</a></p>` + (r.length ? r.map(x => kart(x[0], x[1])).join("") : `<p class="bos">Şu an profiline uyan ilan yok. Yeni ilan çıktığında bildirim alırsın.</p>`);
@@ -126,7 +126,7 @@ async function vIlan(id) {
     ${i.sonBasvuru ? `<a class="b" style="text-decoration:none" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Son başvuru: " + i.baslik)}&dates=${i.sonBasvuru.replace(/-/g,"")}/${i.sonBasvuru.replace(/-/g,"")}">Takvime ekle</a>` : ""}</div></div>
     ${u ? `<div class="panel"><h2>Sana uygun mu? <span class="etiket e-${u.durum}">${{UYGUN:"Uygunsun",KONTROL:"Kontrol et",DEGIL:"Uygun değil"}[u.durum]}</span></h2><ul class="gerekce">${u.g.map(([s,m]) => `<li>${s==="E"?"✅":s==="H"?"❌":"⚠️"} ${esc(m)}</li>`).join("")}</ul></div>` : `<div class="panel">Profilini oluşturursan bu ilanın şartlarını seninle karşılaştırırız. <a href="#/profil">Profil oluştur</a></div>`}
     <div class="panel"><h2>İlan özeti</h2><div class="metin">${esc(detay || i.ozet || "Ayrıntılar resmî ilan metnindedir.")}</div><p class="not">Özet resmî metinden otomatik çıkarılmıştır; başvurmadan önce resmî ilanı oku.</p></div>`;
-    $("#kaydet").onclick = () => { kayit = kayit.includes(i.id) ? kayit.filter(x => x !== i.id) : [...kayit, i.id]; yaz("am_kayit", kayit); ciz(detay); };
+    $("#kaydet").onclick = () => { kayit = kayit.includes(i.id) ? kayit.filter(x => x !== i.id) : [...kayit, i.id]; yaz("am_kayit", kayit); hesapGuncelle({kayit}); ciz(detay); };
   };
   ciz(null);
   try { const r = await fetch(`data/ilan/${encodeURIComponent(id)}.json`); if (r.ok) ciz((await r.json()).metin); } catch {}
@@ -140,70 +140,130 @@ async function vGundem() {
     + `<div class="panel"><h2>Sınav ve başvuru takvimi</h2>${(t.ogeler||[]).filter(o => (o.bitis||o.tarih) >= bugun).map(o => `<p><b>${tarih(o.tarih)}${o.bitis?" – "+tarih(o.bitis):""}</b><br>${esc(o.baslik)}${o.not?`<br><span class="not">${esc(o.not)}</span>`:""}</p>`).join("") || "<p class='bos'>Yaklaşan tarih yok.</p>"}${t.kaynakUrl?`<p class="not">Kaynak: <a href="${esc(t.kaynakUrl)}" target="_blank" rel="noopener">${esc(t.kaynak||"ÖSYM")}</a></p>`:""}</div>`;
 }
 
-// ---- Profil & bildirim ----
-const sb = (yol, govde) => fetch(`${AM.SUPABASE_URL}/rest/v1/${yol}`, {method:"POST", headers:{apikey:AM.SUPABASE_KEY, "Content-Type":"application/json", Prefer:"return=minimal"}, body:JSON.stringify(govde)});
+// ---- Hesap (Supabase Auth) ----
+const hatirla = oku("am_hatirla", true);
+const db = supabase.createClient(AM.SUPABASE_URL, AM.SUPABASE_KEY, {auth:{persistSession:true, storage: hatirla ? localStorage : sessionStorage, detectSessionInUrl:true}});
+let KULLANICI = null, HESAP = null;
+const sb = (yol, govde) => fetch(`${AM.SUPABASE_URL}/rest/v1/${yol}`, {method:"POST", headers:{apikey:AM.SUPABASE_KEY, "Content-Type":"application/json"}, body:JSON.stringify(govde)});
+const telOk = t => /^(\+90|0)?5\d{9}$/.test(t.replace(/[\s()-]/g, ""));
+const telDuz = t => "0" + t.replace(/[\s()-]/g, "").replace(/^(\+90|0)/, "");
+function ustHesap() {
+  const el = $("#hesap"); if (!el) return;
+  el.textContent = KULLANICI ? (HESAP?.ad || "Hesabım") : "Giriş yap";
+  el.href = KULLANICI ? "#/profil" : "#/giris";
+}
+async function hesapYukle() {
+  const {data:{user}} = await db.auth.getUser(); KULLANICI = user;
+  if (!user) { HESAP = null; ustHesap(); return; }
+  let {data} = await db.from("profiller").select("*").eq("id", user.id).maybeSingle();
+  if (!data) { // ilk giriş: kayıtta girilen bilgilerle hesabı oluştur
+    const m = user.user_metadata || {};
+    const satir = {id:user.id, ad:m.ad || "", soyad:m.soyad || "", telefon:m.telefon || "", eposta:user.email, profil, kayit};
+    const r = await db.from("profiller").insert(satir).select().maybeSingle(); data = r.data;
+  }
+  HESAP = data;
+  if (data) { profil = Object.assign({egitim:"", bolum:"", puanlar:{}, iller:[]}, data.profil || {}); kayit = data.kayit || []; yaz("am_profil", profil); yaz("am_kayit", kayit); }
+  ustHesap();
+}
+const hesapGuncelle = alan => KULLANICI && HESAP ? db.from("profiller").update({...alan, guncelleme:new Date().toISOString()}).eq("id", KULLANICI.id).then(r => { if (!r.error) Object.assign(HESAP, alan); return r; }) : Promise.resolve({});
+
+function vGiris(mod = "giris") {
+  if (KULLANICI) { location.hash = "#/profil"; return; }
+  $("#ana").innerHTML = `<div class="giris"><h1>${mod === "kayit" ? "Hesap <span class='vurgu'>oluştur</span>" : "Giriş <span class='vurgu'>yap</span>"}</h1>
+  <p class="alt">İlanlara herkes hesapsız bakabilir. Hesapla profilin, tercihlerin ve kayıtlı ilanların saklanır; sana uygun yeni ilanlar e-posta ve bildirimle gelir.</p>
+  <div class="sekme"><a href="#/giris" class="${mod==="giris"?"on":""}">Giriş</a><a href="#/kayit" class="${mod==="kayit"?"on":""}">Kayıt ol</a></div>
+  <form class="panel" id="f" autocomplete="on">
+   ${mod === "kayit" ? `<div class="izgara"><label>Ad *<input name="ad" required autocomplete="given-name"></label><label>Soyad *<input name="soyad" required autocomplete="family-name"></label></div>
+   <label>Telefon *<input name="tel" type="tel" required inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx"></label>` : ""}
+   <label>E-posta *<input name="eposta" type="email" required autocomplete="email" inputmode="email"></label>
+   <label>Şifre *<input name="sifre" type="password" required minlength="6" autocomplete="${mod==="kayit"?"new-password":"current-password"}"></label>
+   <label class="satir"><input type="checkbox" name="hatirla" ${hatirla?"checked":""}> Beni hatırla</label>
+   <button class="b ana genis" type="submit">${mod === "kayit" ? "Hesap oluştur" : "Giriş yap"}</button>
+   ${mod === "giris" ? `<p class="not"><a href="#" id="unuttum">Şifremi unuttum</a></p>` : `<p class="not">Kayıt olarak <a href="#/gizlilik">gizlilik metnini</a> kabul etmiş olursun.</p>`}
+   <div class="durum" id="g-durum"></div></form></div>`;
+  const f = $("#f"), durum = (m, hata) => { const d = $("#g-durum"); d.textContent = m; d.classList.toggle("hata", !!hata); };
+  f.onsubmit = async e => {
+    e.preventDefault(); const v = Object.fromEntries(new FormData(f)); const btn = f.querySelector("button"); 
+    yaz("am_hatirla", !!v.hatirla);
+    if (mod === "kayit") {
+      if (!v.ad.trim() || !v.soyad.trim()) return durum("Ad ve soyad zorunlu.", 1);
+      if (!telOk(v.tel)) return durum("Telefon numarasını 05xx xxx xx xx biçiminde yaz.", 1);
+    }
+    btn.disabled = true; durum("Bekleyin…");
+    const r = mod === "kayit"
+      ? await db.auth.signUp({email:v.eposta.trim(), password:v.sifre, options:{data:{ad:v.ad.trim(), soyad:v.soyad.trim(), telefon:telDuz(v.tel)}, emailRedirectTo: location.origin + location.pathname + "#/profil"}})
+      : await db.auth.signInWithPassword({email:v.eposta.trim(), password:v.sifre});
+    btn.disabled = false;
+    if (r.error) return durum(({"Invalid login credentials":"E-posta veya şifre hatalı.","User already registered":"Bu e-postayla zaten hesap var, giriş yap.","Email not confirmed":"E-postanı doğrulamadın. Gelen kutundaki bağlantıya tıkla."})[r.error.message] || r.error.message, 1);
+    if (mod === "kayit" && !r.data.session) return durum("Hesabın oluşturuldu. E-postana gelen doğrulama bağlantısına tıkla, sonra giriş yap.");
+    if (hatirla !== !!v.hatirla) return location.reload();
+    await hesapYukle(); location.hash = "#/profil";
+  };
+  const u = $("#unuttum"); if (u) u.onclick = async e => { e.preventDefault(); const ep = f.eposta.value.trim(); if (!ep) return durum("Önce e-posta adresini yaz.", 1);
+    const r = await db.auth.resetPasswordForEmail(ep, {redirectTo: location.origin + location.pathname}); durum(r.error ? r.error.message : "Şifre yenileme bağlantısı e-postana gönderildi.", !!r.error); };
+}
+
 const b64 = s => { const p = "=".repeat((4 - s.length % 4) % 4); const r = atob((s + p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
 async function pushAboneligi() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
-  if (Notification.permission === "denied") return null;
-  const izin = await Notification.requestPermission(); if (izin !== "granted") return null;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || Notification.permission === "denied") return null;
+  if (await Notification.requestPermission() !== "granted") return null;
   const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, r) => setTimeout(() => r(new Error("sw")), 8000))]);
   return (await reg.pushManager.getSubscription()) || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64(AM.VAPID_PUBLIC)});
 }
 function vProfil() {
-  const ab = oku("am_abone", null);
-  $("#ana").innerHTML = `<h1>Profil & <span class="vurgu">bildirim</span></h1><p class="alt">Bilgilerin yalnızca bu tarayıcıda saklanır. Bildirim açarsan profilin ve e-postan yalnızca sana uygun ilanları göndermek için kaydedilir.</p>
-  <div class="panel"><h2>Profil</h2><div class="izgara">
+  if (!KULLANICI) { vGiris("kayit"); return; }
+  const H = HESAP || {}, pushVar = !!H.push;
+  $("#ana").innerHTML = `<h1>Merhaba ${esc(H.ad || "")}</h1><p class="alt">${esc(H.eposta || KULLANICI.email)} · <a href="#" id="cikis">Çıkış yap</a></p>
+  <div class="panel"><h2>Bildirimler</h2><p>Sana uygun yeni bir ilan yayımlandığı anda e-posta${pushVar ? " ve bu cihaza anlık bildirim" : ""} gönderilir.</p>
+  <label class="satir"><input type="checkbox" id="b-eposta" ${H.bildirim !== false ? "checked" : ""}> E-posta bildirimi (${esc(H.eposta || "")})</label>
+  <div class="arac"><button class="b ${pushVar ? "" : "ana"}" id="b-push">${pushVar ? "Anlık bildirim açık ✓ (yenile)" : "Bu cihazda anlık bildirimi aç"}</button></div>
+  <p class="not">iPhone'da anlık bildirim için siteyi önce Paylaş → “Ana Ekrana Ekle” ile kur.</p><div class="durum" id="b-durum"></div></div>
+  <div class="panel"><h2>Profilim</h2><div class="izgara">
    <label>Öğrenim düzeyi<select id="p-egitim">${secenek(EG, profil.egitim, "Seç")}</select></label>
    <label>Bölüm (varsa)<input id="p-bolum" value="${esc(profil.bolum)}" placeholder="ör. Bilgisayar Mühendisliği"></label>
-   ${PUAN.map(p => `<label>KPSS ${p} puanın<input type="number" step="0.001" data-puan="${p}" inputmode="decimal" value="${profil.puanlar?.[p] ?? ""}" placeholder="yoksa boş bırak"></label>`).join("")}
+   ${PUAN.map(p => `<label>KPSS ${p}<input type="number" inputmode="decimal" step="0.001" data-puan="${p}" value="${profil.puanlar?.[p] ?? ""}" placeholder="yoksa boş"></label>`).join("")}
   </div><label style="margin-top:12px">Çalışmak istediğin iller (boş = tüm Türkiye)</label><div class="iller">${ilSirali().map(([k,v]) => `<label><input type="checkbox" value="${k}" ${profil.iller.includes(k)?"checked":""}>${v}</label>`).join("")}</div>
-  <div class="arac" style="margin-top:12px"><button class="b ana" id="p-kaydet">Profili kaydet</button></div></div>
-  <div class="panel"><h2>Yeni ilan bildirimi</h2><p>Sana uygun yeni bir ilan yayımlandığında e-posta ve tarayıcı/telefon bildirimi gönderelim.</p>
-  <div class="arac"><input id="p-eposta" type="email" placeholder="E-posta adresin" value="${esc(ab?.eposta||"")}" style="flex:1;min-width:220px">
-  <button class="b ana" id="p-bildirim">${ab ? "Bildirim ayarlarını güncelle" : "Bildirimleri aç"}</button>${ab ? `<button class="b" id="p-kapat">Bildirimleri kapat</button>` : ""}</div>
-  <p class="not">E-posta istemiyorsan boş bırak; yalnızca anlık bildirim gelir. iPhone'da anlık bildirim için siteyi önce “Ana Ekrana Ekle” ile kur. Her e-postada abonelikten çıkma bağlantısı bulunur.</p><div class="durum" id="p-durum">${ab ? `✓ Bildirimler açık${ab.eposta ? " · " + esc(ab.eposta) : ""}${ab.push ? " · anlık bildirim" : ""}` : ""}</div></div>`;
-  const oku_ = () => { const p = {egitim:$("#p-egitim").value, bolum:$("#p-bolum").value.trim(), puanlar:{}, iller:[...document.querySelectorAll(".iller input:checked")].map(x=>x.value)};
-    document.querySelectorAll("[data-puan]").forEach(x => { if (x.value) p.puanlar[x.dataset.puan] = +x.value; }); return p; };
-  const durum = m => $("#p-durum").textContent = m;
-  $("#p-kaydet").onclick = () => { profil = oku_(); yaz("am_profil", profil); durum("✓ Profil kaydedildi."); setTimeout(() => location.hash = "#/uygun", 600); };
-  const btn = $("#p-bildirim");
-  btn.onclick = async () => {
-    profil = oku_(); yaz("am_profil", profil);
-    const eposta = $("#p-eposta").value.trim();
-    if (eposta && !/^\S+@\S+\.\S+$/.test(eposta)) return durum("E-posta adresini kontrol et.");
-    if (!eposta && Notification?.permission === "denied") return durum("Tarayıcı bildirimleri engelli. Adres çubuğundaki kilit simgesinden bildirimlere izin ver ya da e-posta adresini yaz.");
-    btn.disabled = true; durum("Kaydediliyor…");
-    let push = null; try { push = await pushAboneligi(); } catch {}
-    if (!eposta && !push) { btn.disabled = false; return durum("Bildirim izni verilmedi. E-posta adresini yazarsan e-postayla haber veririz."); }
-    const token = crypto.randomUUID(), eski = oku("am_abone", null);
-    let r = null; try { r = await sb("aboneler", {eposta: eposta || null, push: push ? push.toJSON() : null, profil, token}); } catch {}
-    btn.disabled = false;
-    if (!r || !r.ok) { let m = ""; try { m = (await r.json()).message; } catch {} return durum("Kaydedilemedi" + (m ? ` (${m})` : "") + ". Biraz sonra tekrar dene."); }
-    if (eski?.token) sb("rpc/abonelik_iptal", {t: eski.token}).catch(()=>{});
-    yaz("am_abone", {eposta, token, push: !!push});
-    vProfil();
-    durum(`✓ Bildirimler açık${eposta ? ` · ${eposta} adresine ilk e-posta (sana uygun güncel ilanlar) 30 dakika içinde gelir; gelmezse Spam klasörüne bak` : ""}${push ? " · anlık bildirim açık" : (Notification?.permission === "denied" ? " · anlık bildirim tarayıcıda engelli" : "")}.`);
+  <div class="arac" style="margin-top:12px"><button class="b ana genis" id="p-kaydet">Profili kaydet</button></div><div class="durum" id="p-durum"></div></div>
+  <div class="panel"><h2>Hesap bilgileri</h2><div class="izgara"><label>Ad *<input id="h-ad" value="${esc(H.ad||"")}"></label><label>Soyad *<input id="h-soyad" value="${esc(H.soyad||"")}"></label></div>
+  <label>Telefon *<input id="h-tel" type="tel" inputmode="tel" value="${esc(H.telefon||"")}"></label><div class="arac" style="margin-top:10px"><button class="b" id="h-kaydet">Bilgileri güncelle</button></div><div class="durum" id="h-durum"></div></div>`;
+  const yazD = (id, m, hata) => { const d = $(id); d.textContent = m; d.classList.toggle("hata", !!hata); };
+  $("#cikis").onclick = async e => { e.preventDefault(); await db.auth.signOut(); KULLANICI = HESAP = null; ustHesap(); location.hash = "#/"; };
+  $("#p-kaydet").onclick = async () => {
+    const p = {egitim:$("#p-egitim").value, bolum:$("#p-bolum").value.trim(), puanlar:{}, iller:[...document.querySelectorAll(".iller input:checked")].map(x=>x.value)};
+    document.querySelectorAll("[data-puan]").forEach(x => { if (x.value) p.puanlar[x.dataset.puan] = +x.value; });
+    profil = p; yaz("am_profil", p);
+    const r = await hesapGuncelle({profil:p}); if (r.error) return yazD("#p-durum", "Kaydedilemedi: " + r.error.message, 1);
+    yazD("#p-durum", "✓ Profil kaydedildi."); setTimeout(() => location.hash = "#/uygun", 700);
   };
-  if ($("#p-kapat")) $("#p-kapat").onclick = async () => { const a = oku("am_abone", null); if (a?.token) await sb("rpc/abonelik_iptal", {t:a.token}).catch(()=>{});
-    try { const reg = await navigator.serviceWorker.ready; (await reg.pushManager.getSubscription())?.unsubscribe(); } catch {}
-    localStorage.removeItem("am_abone"); vProfil(); durum("Bildirimler kapatıldı."); };
+  $("#b-eposta").onchange = async e => { const r = await hesapGuncelle({bildirim:e.target.checked}); yazD("#b-durum", r.error ? r.error.message : e.target.checked ? "✓ E-posta bildirimi açık." : "E-posta bildirimi kapatıldı.", !!r.error); };
+  $("#b-push").onclick = async () => {
+    if (Notification?.permission === "denied") return yazD("#b-durum", "Bildirimler tarayıcıda engelli. Adres çubuğundaki kilit simgesinden izin ver.", 1);
+    let s = null; try { s = await pushAboneligi(); } catch {}
+    if (!s) return yazD("#b-durum", "Bildirim izni verilmedi.", 1);
+    const r = await hesapGuncelle({push:s.toJSON()}); if (r.error) return yazD("#b-durum", r.error.message, 1);
+    vProfil(); yazD("#b-durum", "✓ Bu cihazda anlık bildirim açık.");
+  };
+  $("#h-kaydet").onclick = async () => {
+    const ad = $("#h-ad").value.trim(), soyad = $("#h-soyad").value.trim(), tel = $("#h-tel").value;
+    if (!ad || !soyad) return yazD("#h-durum", "Ad ve soyad zorunlu.", 1);
+    if (!telOk(tel)) return yazD("#h-durum", "Telefon numarasını 05xx xxx xx xx biçiminde yaz.", 1);
+    const r = await hesapGuncelle({ad, soyad, telefon:telDuz(tel)}); yazD("#h-durum", r.error ? r.error.message : "✓ Güncellendi.", !!r.error); ustHesap();
+  };
 }
 function vGizlilik() {
-  $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>Profil bilgilerin (öğrenim, bölüm, KPSS puanı, il tercihi) ve kayıtlı ilanların yalnızca tarayıcında saklanır.</p><p>Bildirimleri açarsan e-posta adresin, tarayıcı bildirim adresin ve profilin yalnızca sana uygun yeni ilanları göndermek için saklanır (Supabase). E-postalar Brevo üzerinden gönderilir. Bu bilgiler başka hiçbir amaçla kullanılmaz, paylaşılmaz.</p><p>Her e-postadaki bağlantıyla ya da Profil & Bildirim sayfasındaki “Bildirimleri kapat” ile kayıtlarını tamamen silebilirsin. Sitede analiz veya izleme aracı yoktur.</p><p>İletişim: <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a></p></div>`;
+  $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş olarak), profil tercihlerin (öğrenim, bölüm, KPSS puanı, il), kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi Supabase'de saklanır.</p><p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, paylaşılmaz. Telefon numarası yalnızca hesap bilgisi olarak saklanır, SMS gönderilmez.</p><p>E-posta bildirimini Hesabım sayfasından ya da her e-postadaki bağlantıdan kapatabilirsin. Hesabının ve tüm verilerinin silinmesi için <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a> adresine yaz. Sitede analiz veya izleme aracı yoktur.</p></div>`;
 }
 async function iptal(t) {
   $("#ana").innerHTML = `<p class="bos">İşleniyor…</p>`;
   const r = await sb("rpc/abonelik_iptal", {t}).catch(() => null);
-  localStorage.removeItem("am_abone");
   $("#ana").innerHTML = `<div class="panel"><h1>${r && r.ok ? "Abonelikten çıktın" : "İşlem tamamlanamadı"}</h1><p>${r && r.ok ? "Artık e-posta ve bildirim almayacaksın. İstediğin zaman yeniden açabilirsin." : "Lütfen biraz sonra tekrar dene."}</p><a href="#/">İlanlara dön</a></div>`;
 }
 
 function yonlendir() {
   const h = location.hash.slice(2), [s, x] = h.split("/");
-  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.s === (s || "ilanlar")));
+  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.s === ({giris:"profil",kayit:"profil"}[s] || s || "ilanlar")));
   window.scrollTo(0, 0);
-  ({"":vIlanlar, uygun:vUygun, kayitli:vKayitli, gundem:vGundem, profil:vProfil, gizlilik:vGizlilik, ilan:() => vIlan(decodeURIComponent(x))}[s] || vIlanlar)();
+  ({"":vIlanlar, uygun:vUygun, kayitli:vKayitli, gundem:vGundem, profil:vProfil, giris:() => vGiris("giris"), kayit:() => vGiris("kayit"), gizlilik:vGizlilik, ilan:() => vIlan(decodeURIComponent(x))}[s] || vIlanlar)();
 }
 const tema = () => { const k = oku("am_tema", matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("koyu", k); document.querySelector("meta[name=theme-color]").content = k ? "#0F1115" : "#F4F6F9"; };
 $("#tema").onclick = () => { yaz("am_tema", !document.documentElement.classList.contains("koyu")); tema(); };
@@ -213,6 +273,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   const q = new URLSearchParams(location.search).get("iptal");
   try { const d = await (await fetch("data/ilanlar.json", {cache:"no-cache"})).json(); ILANLAR = d.ilanlar; GUNCEL = d.guncelleme; }
   catch { $("#ana").innerHTML = `<p class="bos">İlanlar yüklenemedi. İnternet bağlantını kontrol et.</p>`; }
+  try { await hesapYukle(); } catch {}
+  db.auth.onAuthStateChange(async (ev) => { if (ev === "PASSWORD_RECOVERY") { const y = prompt("Yeni şifreni yaz (en az 6 karakter):"); if (y) { const r = await db.auth.updateUser({password:y}); alert(r.error ? r.error.message : "Şifren güncellendi."); } } });
   if (q) return iptal(q);
   addEventListener("hashchange", yonlendir); yonlendir();
 })();

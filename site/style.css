@@ -95,3 +95,15 @@ nav a i{font-style:normal;display:none}
   .panel .arac>button.b,.panel .arac>a.b{flex:1}
   footer{padding:0 14px;font-size:12px}
 }
+.hesap{font-weight:600;text-decoration:none;color:var(--ink);border:1px solid var(--line);background:var(--sheet);border-radius:999px;padding:7px 14px;white-space:nowrap;max-width:40vw;overflow:hidden;text-overflow:ellipsis}
+.giris{max-width:460px;margin:0 auto}
+.giris label{margin-top:10px}
+.sekme{display:grid;grid-template-columns:1fr 1fr;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:12px}
+.sekme a{text-align:center;padding:10px;border-radius:9px;text-decoration:none;color:var(--ink2);font-weight:600}
+.sekme a.on{background:var(--ink);color:var(--paper)}
+label.satir{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px;margin:10px 0}
+label.satir input{width:22px;height:22px;min-height:0;margin:0}
+.genis{width:100%;margin-top:12px}
+.durum.hata{color:var(--no)}
+a.b.ana{color:var(--paper)}
+@media(max-width:760px){.hesap{padding:6px 12px;font-size:14px}}

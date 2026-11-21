@@ -3,7 +3,7 @@ name: Yayın ve bildirim
 
 on:
   schedule:
-    - cron: "12,42 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
   push:
     branches: [main]

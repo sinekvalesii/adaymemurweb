@@ -101,7 +101,7 @@ def gonder(a, eslesen, konu, baslik_html):
             p_ok = True
         except WebPushException as e:
             if e.response is not None and e.response.status_code in (404, 410):
-                sb("PATCH", f"aboneler?id=eq.{a['id']}", json={"push": None})
+                sb("PATCH", f"{a.get('_tablo', 'aboneler')}?id=eq.{a['id']}", json={"push": None})
             print("Push hata:", e)
     return e_ok, p_ok
 
@@ -119,12 +119,15 @@ def main(eski_yol, yeni_yol):
     if not SB or not SBK:
         print("Supabase ayarı eksik.")
         return
-    r = sb("GET", "aboneler?select=*&order=olusturma.desc")
-    if not r.ok:
-        print("Supabase okuma hatası:", r.status_code, r.text[:300])
-        return
+    liste = []
+    for tablo, filtre in (("profiller", "&bildirim=eq.true"), ("aboneler", "")):
+        r = sb("GET", f"{tablo}?select=*&order=olusturma.desc{filtre}")
+        if r.ok:
+            liste += [dict(x, _tablo=tablo) for x in r.json()]
+        else:
+            print(f"Supabase okuma hatası ({tablo}):", r.status_code, r.text[:200])
     gorulen, sayac = set(), [0, 0, 0]
-    for a in r.json():
+    for a in liste:
         anah = a.get("eposta") or (a.get("push") or {}).get("endpoint")
         if not anah or anah in gorulen:
             continue
@@ -138,7 +141,7 @@ def main(eski_yol, yeni_yol):
                 ok = gonder(a, es, f"Bildirimler açık: sana uygun {len(es)} güncel ilan", f"Bildirimler açık. Şu an sana uygun {len(es)} ilan var")
             else:
                 ok = gonder(a, [(aktif[0], "KONTROL")] if aktif else [], "Aday Memur bildirimleri açık", "Bildirimler açık. Sana uygun yeni ilan çıktığında haber vereceğiz") if aktif else (False, False)
-            sb("PATCH", f"aboneler?id=eq.{a['id']}", json={"hosgeldin": True})
+            sb("PATCH", f"{a['_tablo']}?id=eq.{a['id']}", json={"hosgeldin": True})
             sayac[2] += 1
             continue
         es = [(i, d) for i in taze if (d := uygun(i, profil))]

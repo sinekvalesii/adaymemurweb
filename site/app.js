@@ -90,12 +90,12 @@ const ilSirali = () => Object.entries(IL).sort((a,b)=>a[1].localeCompare(b[1],"t
 function vIlanlar() {
   const ilObj = Object.fromEntries(ilSirali());
   $("#ana").innerHTML = `<h1>Kamu ilanları, <span class="vurgu">tek yerde.</span></h1><p class="alt">${ILANLAR.length} güncel ilan · resmî kaynaklardan otomatik derlenir · ${GUNCEL ? "güncelleme " + new Date(GUNCEL).toLocaleString("tr-TR",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}) : ""}</p>
-  <div class="arac"><input type="search" id="f-arama" placeholder="Kurum, unvan, il ara…" value="${esc(filtre.arama)}">
+  <input type="search" id="f-arama" class="ara" placeholder="Kurum, unvan, il ara…" value="${esc(filtre.arama)}"><div class="arac filtreler">
   <select id="f-tur">${secenek(TUR, filtre.tur, "Tüm kadrolar")}</select>
   <select id="f-egitim">${secenek(EG, filtre.egitim, "Tüm öğrenim")}</select>
   <select id="f-il">${secenek(ilObj, filtre.il, "Tüm iller")}</select>
   <select id="f-puanTuru">${secenek(Object.fromEntries(PUAN.map(p=>[p,"KPSS "+p])), filtre.puanTuru, "Puan türü")}</select>
-  <input id="f-puan" type="number" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
+  <input id="f-puan" type="number" inputmode="decimal" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
   <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!oku("am_abone", null) ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Profilini oluştur, e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/profil">Bildirimleri aç</a></div>` : ""}<div id="liste"></div>`;
   const ciz = () => { const l = filtrele(ILANLAR); $("#liste").innerHTML = l.length ? l.slice(0,300).map(i => kart(i, profilVar() ? uygunluk(i, profil) : null)).join("") : `<p class="bos">Bu filtrelere uyan ilan yok.</p>`; };
   for (const k of Object.keys(filtre)) { const el = $("#f-" + k); if (el) el.addEventListener("input", () => { filtre[k] = el.value; ciz(); }); }
@@ -121,7 +121,7 @@ async function vIlan(id) {
     <p><b>Son başvuru:</b> ${i.sonBasvuru ? `${tarih(i.sonBasvuru)} ${k!==null ? `(${k<0?"süresi doldu":k===0?"bugün":k+" gün kaldı"})` : ""}` : "İlan metninde"}<br>
     <b>KPSS:</b> ${i.kpssGerekli===false ? "Şart yok" : i.kpss.length ? i.kpss.map(x=>x.min?`${x.tur} ≥ ${x.min}`:x.tur).join(", ") : "İlan metninde"}<br>
     <b>Kadro yeri:</b> ${i.iller.length ? i.iller.map(x=>IL[x]).join(", ") : "Türkiye geneli / ilan metninde"}${i.unvanlar?.length ? `<br><b>Unvanlar:</b> ${esc(i.unvanlar.slice(0,12).join(", "))}` : ""}</p>
-    <div class="arac"><a class="b ana" style="text-decoration:none" href="${esc(i.url)}" target="_blank" rel="noopener">Resmî ilana git ↗</a>
+    <div class="arac eylem"><a class="b ana" style="text-decoration:none" href="${esc(i.url)}" target="_blank" rel="noopener">Resmî ilana git ↗</a>
     <button class="b" id="kaydet">${kayitli ? "Kaydedildi ✓" : "Kaydet"}</button>
     ${i.sonBasvuru ? `<a class="b" style="text-decoration:none" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Son başvuru: " + i.baslik)}&dates=${i.sonBasvuru.replace(/-/g,"")}/${i.sonBasvuru.replace(/-/g,"")}">Takvime ekle</a>` : ""}</div></div>
     ${u ? `<div class="panel"><h2>Sana uygun mu? <span class="etiket e-${u.durum}">${{UYGUN:"Uygunsun",KONTROL:"Kontrol et",DEGIL:"Uygun değil"}[u.durum]}</span></h2><ul class="gerekce">${u.g.map(([s,m]) => `<li>${s==="E"?"✅":s==="H"?"❌":"⚠️"} ${esc(m)}</li>`).join("")}</ul></div>` : `<div class="panel">Profilini oluşturursan bu ilanın şartlarını seninle karşılaştırırız. <a href="#/profil">Profil oluştur</a></div>`}
@@ -156,7 +156,7 @@ function vProfil() {
   <div class="panel"><h2>Profil</h2><div class="izgara">
    <label>Öğrenim düzeyi<select id="p-egitim">${secenek(EG, profil.egitim, "Seç")}</select></label>
    <label>Bölüm (varsa)<input id="p-bolum" value="${esc(profil.bolum)}" placeholder="ör. Bilgisayar Mühendisliği"></label>
-   ${PUAN.map(p => `<label>KPSS ${p} puanın<input type="number" step="0.001" data-puan="${p}" value="${profil.puanlar?.[p] ?? ""}" placeholder="yoksa boş bırak"></label>`).join("")}
+   ${PUAN.map(p => `<label>KPSS ${p} puanın<input type="number" step="0.001" data-puan="${p}" inputmode="decimal" value="${profil.puanlar?.[p] ?? ""}" placeholder="yoksa boş bırak"></label>`).join("")}
   </div><label style="margin-top:12px">Çalışmak istediğin iller (boş = tüm Türkiye)</label><div class="iller">${ilSirali().map(([k,v]) => `<label><input type="checkbox" value="${k}" ${profil.iller.includes(k)?"checked":""}>${v}</label>`).join("")}</div>
   <div class="arac" style="margin-top:12px"><button class="b ana" id="p-kaydet">Profili kaydet</button></div></div>
   <div class="panel"><h2>Yeni ilan bildirimi</h2><p>Sana uygun yeni bir ilan yayımlandığında e-posta ve tarayıcı/telefon bildirimi gönderelim.</p>

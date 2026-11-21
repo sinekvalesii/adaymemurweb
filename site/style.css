@@ -107,3 +107,12 @@ label.satir input{width:22px;height:22px;min-height:0;margin:0}
 .durum.hata{color:var(--no)}
 a.b.ana{color:var(--paper)}
 @media(max-width:760px){.hesap{padding:6px 12px;font-size:14px}}
+.play{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--paper);text-decoration:none;border-radius:12px;padding:10px 14px;margin:0 0 14px;max-width:340px}
+.play small{display:block;font-size:11px;opacity:.75}.play b{font-size:16px}
+.play-ikon{width:32px;height:32px;border-radius:8px;background:var(--marker);color:#1B1E23;display:grid;place-items:center;font-size:14px;flex:none}
+.play em{margin-left:auto;font-style:normal;font-size:11px;font-weight:600;background:var(--marker);color:#1B1E23;border-radius:999px;padding:3px 8px}
+footer .play{margin:0 0 12px}
+.yakinda{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;transition:.25s;background:var(--sheet);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--marker);box-shadow:0 8px 30px rgba(0,0,0,.18);border-radius:12px;padding:12px 16px;width:min(92vw,380px);z-index:50}
+.yakinda b{display:block;margin-bottom:2px}.yakinda span{font-size:14px;color:var(--ink2)}
+.yakinda.acik{opacity:1;transform:translate(-50%,0)}
+@media(min-width:761px){.yakinda{bottom:24px}}

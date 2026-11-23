@@ -32,7 +32,23 @@ def anahtar(b):
     return [" ".join(kel), kel[0]] if kel else [k]
 
 
+def takip_eslesir(t, i, iller):
+    metin = katla(" ".join((i.get("unvanlar") or []) + [i.get("baslik") or ""]))
+    if not any(katla(u) and katla(u) in metin for u in t.get("unvanlar") or []):
+        return False
+    if t.get("kurum") and katla(t["kurum"]) not in katla(i.get("kurum")):
+        return False
+    if t.get("profilIlleri", True) and iller and i.get("iller") and not set(i["iller"]) & set(iller):
+        return False
+    return True
+
+
 def uygun(i, p):
+    takip = p.get("takip") or []
+    if any(takip_eslesir(t, i, p.get("iller") or []) for t in takip):
+        return "UYGUN"
+    if takip and not p.get("egitim") and not p.get("puanlar"):
+        return None
     g = []
     pu = p.get("puanlar") or {}
     if p.get("egitim"):
@@ -114,6 +130,11 @@ def main(eski_yol, yeni_yol):
         eski = {x["id"] for x in json.load(open(eski_yol, encoding="utf-8"))["ilanlar"]}
     except Exception:
         eski = None
+    try:
+        eski_zaman = json.load(open(eski_yol, encoding="utf-8")).get("guncelleme", "")[:10]
+    except Exception:
+        eski_zaman = bugun
+    acilan = [i for i in aktif if i.get("basvuruBaslangic") and eski_zaman < i["basvuruBaslangic"] <= bugun]
     taze = [] if eski is None else [i for i in aktif if i["id"] not in eski and not any(x in eski for x in i.get("ayni") or [])]
     print(f"Yeni ilan: {len(taze)}")
     if not SB or not SBK:
@@ -144,6 +165,9 @@ def main(eski_yol, yeni_yol):
             sb("PATCH", f"{a['_tablo']}?id=eq.{a['id']}", json={"hosgeldin": True})
             sayac[2] += 1
             continue
+        ac = [i for i in acilan if i["id"] in (profil.get("acilis") or []) or uygun(i, profil)]
+        if ac:
+            gonder(a, [(i, "UYGUN") for i in ac], f"Başvurular açıldı: {ac[0]['baslik'][:60]}", f"Takip ettiğin {len(ac)} ilanda başvurular açıldı")
         es = [(i, d) for i in taze if (d := uygun(i, profil))]
         if not es:
             continue

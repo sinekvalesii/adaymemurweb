@@ -290,7 +290,8 @@ function vProfil() {
   <div class="arac" style="margin-top:12px"><button class="b ana genis" id="p-kaydet">Profili kaydet</button></div><div class="durum" id="p-durum"></div></div>
   <div class="panel"><h2>🔔 Takiplerim</h2><div id="takipler"></div></div>
   <div class="panel"><h2>Hesap bilgileri</h2><div class="izgara"><label>Ad *<input id="h-ad" value="${esc(H.ad||"")}"></label><label>Soyad *<input id="h-soyad" value="${esc(H.soyad||"")}"></label></div>
-  <label>Telefon *<input id="h-tel" type="tel" inputmode="tel" value="${esc(H.telefon||"")}"></label><div class="arac" style="margin-top:10px"><button class="b" id="h-kaydet">Bilgileri güncelle</button></div><div class="durum" id="h-durum"></div></div>`;
+  <label>Telefon *<input id="h-tel" type="tel" inputmode="tel" value="${esc(H.telefon||"")}"></label><div class="arac" style="margin-top:10px"><button class="b" id="h-kaydet">Bilgileri güncelle</button></div><div class="durum" id="h-durum"></div>
+  <button class="metin-btn" id="h-sil" style="color:var(--no)">Hesabımı kalıcı olarak sil</button></div>`;
   const yazD = (id, m, hata) => { const d = $(id); d.textContent = m; d.classList.toggle("hata", !!hata); };
   const secili = new Set(profil.iller || []); ilSecici($("#ilsec"), secili);
   const takipCiz = () => {
@@ -314,6 +315,11 @@ function vProfil() {
     if (!s) return yazD("#b-durum", "Bildirim izni verilmedi.", 1);
     const r = await hesapGuncelle({push:s.toJSON()}); if (r.error) return yazD("#b-durum", r.error.message, 1);
     vProfil(); yazD("#b-durum", "✓ Bu cihazda anlık bildirim açık.");
+  };
+  $("#h-sil").onclick = async () => {
+    if (!confirm("Hesabın, profilin ve takiplerin kalıcı olarak silinecek. Emin misin?")) return;
+    const r = await db.rpc("hesap_sil"); if (r.error) return yazD("#h-durum", "Silinemedi: " + r.error.message, 1);
+    await db.auth.signOut(); KULLANICI = HESAP = null; localStorage.removeItem("am_profil"); ustHesap(); location.hash = "#/"; toast("Hesabın silindi", "Tüm verilerin kaldırıldı.");
   };
   $("#h-kaydet").onclick = async () => {
     const ad = $("#h-ad").value.trim(), soyad = $("#h-soyad").value.trim(), tel = $("#h-tel").value;
@@ -371,7 +377,7 @@ async function vSifre() {
     yazD("✓ Şifren güncellendi. Yönlendiriliyorsun…"); await hesapYukle(); setTimeout(() => location.hash = "#/profil", 900); };
 }
 function vGizlilik() {
-  $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş olarak), profil tercihlerin (öğrenim, bölüm, KPSS puanı, il), kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi Supabase'de saklanır.</p><p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, paylaşılmaz. Telefon numarası yalnızca hesap bilgisi olarak saklanır, SMS gönderilmez.</p><p>E-posta bildirimini Hesabım sayfasından ya da her e-postadaki bağlantıdan kapatabilirsin. Hesabının ve tüm verilerinin silinmesi için <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a> adresine yaz. Sitede analiz veya izleme aracı yoktur.</p></div>`;
+  $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş olarak), profil tercihlerin (öğrenim, bölüm, KPSS puanı, il), kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi Supabase'de saklanır.</p><p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, paylaşılmaz. Telefon numarası yalnızca hesap bilgisi olarak saklanır, SMS gönderilmez.</p><p>E-posta bildirimini Hesabım sayfasından ya da her e-postadaki bağlantıdan kapatabilirsin. Hesabını ve tüm verilerini Hesabım sayfasındaki “Hesabımı kalıcı olarak sil” ile ya da <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a> adresine yazarak silebilirsin. Sitede analiz veya izleme aracı yoktur.</p></div>`;
 }
 async function iptal(t) {
   $("#ana").innerHTML = `<p class="bos">İşleniyor…</p>`;

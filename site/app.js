@@ -199,7 +199,9 @@ async function vGundem() {
 
 // ---- Hesap (Supabase Auth) ----
 const hatirla = oku("am_hatirla", true);
-const db = supabase.createClient(AM.SUPABASE_URL, AM.SUPABASE_KEY, {auth:{persistSession:true, storage: hatirla ? localStorage : sessionStorage, detectSessionInUrl:true}});
+const KURTARMA = /type=recovery/.test(location.hash), LINK_HATA = /error_code=|error=/.test(location.hash) ? new URLSearchParams(location.hash.slice(1)).get("error_description") : null;
+const db = supabase.createClient(AM.SUPABASE_URL, AM.SUPABASE_KEY, {auth:{persistSession:true, storage: KURTARMA ? localStorage : hatirla ? localStorage : sessionStorage, detectSessionInUrl:true, flowType:"implicit"}});
+db.auth.onAuthStateChange(ev => { if (ev === "PASSWORD_RECOVERY" && location.hash !== "#/sifre") location.hash = "#/sifre"; });
 let KULLANICI = null, HESAP = null;
 const sb = (yol, govde) => fetch(`${AM.SUPABASE_URL}/rest/v1/${yol}`, {method:"POST", headers:{apikey:AM.SUPABASE_KEY, "Content-Type":"application/json"}, body:JSON.stringify(govde)});
 const telOk = t => /^(\+90|0)?5\d{9}$/.test(t.replace(/[\s()-]/g, ""));
@@ -256,8 +258,13 @@ function vGiris(mod = "giris") {
     if (hatirla !== !!v.hatirla) return location.reload();
     await hesapYukle(); location.hash = "#/profil";
   };
-  const u = $("#unuttum"); if (u) u.onclick = async e => { e.preventDefault(); const ep = f.eposta.value.trim(); if (!ep) return durum("Önce e-posta adresini yaz.", 1);
-    const r = await db.auth.resetPasswordForEmail(ep, {redirectTo: location.origin + location.pathname}); durum(r.error ? r.error.message : "Şifre yenileme bağlantısı e-postana gönderildi.", !!r.error); };
+  const u = $("#unuttum"); if (u) u.onclick = async e => { e.preventDefault(); const ep = f.eposta.value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(ep)) { f.eposta.focus(); return durum("Önce hesabına ait e-posta adresini yaz, sonra “Şifremi unuttum”a bas.", 1); }
+    u.style.pointerEvents = "none"; durum("Gönderiliyor…");
+    const r = await db.auth.resetPasswordForEmail(ep, {redirectTo: location.origin + location.pathname});
+    u.style.pointerEvents = "";
+    if (r.error) { const m = r.error.message || ""; return durum(/rate limit|only request this after/i.test(m) ? "Çok sık istek gönderildi. Birkaç dakika sonra tekrar dene." : "Gönderilemedi: " + m, 1); }
+    durum(`Şifre yenileme bağlantısı ${ep} adresine gönderildi. Gelen kutunu ve spam klasörünü kontrol et.`); };
 }
 
 const b64 = s => { const p = "=".repeat((4 - s.length % 4) % 4); const r = atob((s + p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
@@ -346,6 +353,23 @@ function ilSecici(kok, secili) {
   });
   ciz();
 }
+async function vSifre() {
+  const {data:{session}} = await db.auth.getSession();
+  if (!session) { $("#ana").innerHTML = `<div class="giris"><h1>Şifre <span class="vurgu">yenile</span></h1><div class="panel"><p>Bağlantının süresi dolmuş ya da daha önce kullanılmış.</p><a class="btn birincil genis" href="#/giris">Yeni bağlantı iste</a></div></div>`; return; }
+  $("#ana").innerHTML = `<div class="giris"><h1>Yeni <span class="vurgu">şifre</span></h1><p class="alt">${esc(session.user.email)} hesabı için yeni şifreni belirle.</p>
+  <form class="panel" id="sf"><label>Yeni şifre *<input name="s1" type="password" minlength="6" required autocomplete="new-password"></label>
+  <label>Yeni şifre (tekrar) *<input name="s2" type="password" minlength="6" required autocomplete="new-password"></label>
+  <button class="btn birincil genis" type="submit" style="margin-top:14px">Şifreyi kaydet</button><div class="durum" id="sf-durum"></div></form></div>`;
+  const f = $("#sf"), d = $("#sf-durum");
+  f.onsubmit = async e => { e.preventDefault(); const v = Object.fromEntries(new FormData(f));
+    const yazD = (m, h) => { d.textContent = m; d.classList.toggle("hata", !!h); };
+    if (v.s1.length < 6) return yazD("Şifre en az 6 karakter olmalı.", 1);
+    if (v.s1 !== v.s2) return yazD("Şifreler aynı değil.", 1);
+    f.querySelector("button").disabled = true;
+    const r = await db.auth.updateUser({password:v.s1}); f.querySelector("button").disabled = false;
+    if (r.error) return yazD(/different from the old/i.test(r.error.message) ? "Yeni şifre eskisiyle aynı olamaz." : r.error.message, 1);
+    yazD("✓ Şifren güncellendi. Yönlendiriliyorsun…"); await hesapYukle(); setTimeout(() => location.hash = "#/profil", 900); };
+}
 function vGizlilik() {
   $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş olarak), profil tercihlerin (öğrenim, bölüm, KPSS puanı, il), kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi Supabase'de saklanır.</p><p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, paylaşılmaz. Telefon numarası yalnızca hesap bilgisi olarak saklanır, SMS gönderilmez.</p><p>E-posta bildirimini Hesabım sayfasından ya da her e-postadaki bağlantıdan kapatabilirsin. Hesabının ve tüm verilerinin silinmesi için <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a> adresine yaz. Sitede analiz veya izleme aracı yoktur.</p></div>`;
 }
@@ -359,7 +383,7 @@ function yonlendir() {
   const h = location.hash.slice(2), [s, x] = h.split("/");
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.s === ({giris:"profil",kayit:"profil"}[s] || s || "ilanlar")));
   window.scrollTo(0, 0);
-  ({"":vIlanlar, uygun:vUygun, kayitli:vKayitli, gundem:vGundem, profil:vProfil, giris:() => vGiris("giris"), kayit:() => vGiris("kayit"), gizlilik:vGizlilik, ilan:() => vIlan(decodeURIComponent(x))}[s] || vIlanlar)();
+  ({"":vIlanlar, uygun:vUygun, kayitli:vKayitli, gundem:vGundem, profil:vProfil, giris:() => vGiris("giris"), kayit:() => vGiris("kayit"), gizlilik:vGizlilik, sifre:vSifre, ilan:() => vIlan(decodeURIComponent(x))}[s] || vIlanlar)();
 }
 const tema = () => { const k = oku("am_tema", matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("koyu", k); document.querySelector("meta[name=theme-color]").content = k ? "#0F1115" : "#F4F6F9"; };
 $("#tema").onclick = () => { yaz("am_tema", !document.documentElement.classList.contains("koyu")); tema(); };
@@ -370,7 +394,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   try { const d = await (await fetch("data/ilanlar.json", {cache:"no-cache"})).json(); ILANLAR = d.ilanlar; GUNCEL = d.guncelleme; }
   catch { $("#ana").innerHTML = `<p class="bos">İlanlar yüklenemedi. İnternet bağlantını kontrol et.</p>`; }
   try { await hesapYukle(); } catch {}
-  db.auth.onAuthStateChange(async (ev) => { if (ev === "PASSWORD_RECOVERY") { const y = prompt("Yeni şifreni yaz (en az 6 karakter):"); if (y) { const r = await db.auth.updateUser({password:y}); alert(r.error ? r.error.message : "Şifren güncellendi."); } } });
+  if (KURTARMA) history.replaceState(null, "", location.pathname + "#/sifre");
+  else if (LINK_HATA) { history.replaceState(null, "", location.pathname + "#/giris"); setTimeout(() => toast("Bağlantı geçersiz", "Şifre yenileme bağlantısının süresi dolmuş ya da kullanılmış. Yeniden iste."), 300); }
   sayac();
   if (q) return iptal(q);
   addEventListener("hashchange", yonlendir); yonlendir();

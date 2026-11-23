@@ -57,6 +57,20 @@ function uygunluk(i, p, detay) {
   return {durum: h ? "DEGIL" : b ? "KONTROL" : "UYGUN", puan: e*10 - b*3 - h*50 + (i.kadro ? Math.min(10, Math.log10(i.kadro+1)*3) : 0), g};
 }
 const profilVar = () => profil.egitim || Object.keys(profil.puanlar||{}).length || profil.bolum;
+const BUGUN = () => new Date(Date.now() + 3*36e5).toISOString().slice(0,10);
+const acilmadi = i => !!i.basvuruBaslangic && i.basvuruBaslangic > BUGUN();
+const kisaT = s => new Date(s).toLocaleDateString("tr-TR", {day:"numeric", month:"short"});
+const aktifler = () => ILANLAR.filter(i => { const k = kalan(i.sonBasvuru); return k === null || k >= 0; });
+const uygunlar = () => aktifler().map(i => [i, uygunluk(i, profil)]).filter(x => x[1].durum !== "DEGIL").sort((a,b) => (a[1].durum===b[1].durum ? 0 : a[1].durum==="UYGUN" ? -1 : 1) || b[1].puan - a[1].puan);
+function sayac() { const el = $("#uy-say"); if (!el) return; const n = profilVar() ? uygunlar().filter(x=>x[1].durum==="UYGUN").length : 0; el.textContent = n ? (n > 99 ? "99+" : n) : ""; }
+function toast(b, m) {
+  let t = document.querySelector(".yakinda");
+  if (!t) { t = document.createElement("div"); t.className = "yakinda"; document.body.appendChild(t); }
+  t.innerHTML = `<b>${esc(b)}</b><span>${esc(m)}</span>`;
+  t.classList.add("acik"); clearTimeout(t._z); t._z = setTimeout(() => t.classList.remove("acik"), 3500);
+}
+const BOLGE = {"Marmara":"10 11 16 17 22 34 39 41 54 59 77","Ege":"03 09 20 35 43 45 48 64","İç Anadolu":"06 18 26 38 40 42 50 51 58 66 68 70 71","Akdeniz":"01 07 15 31 32 33 46 80","Karadeniz":"05 08 14 19 28 29 37 52 53 55 57 60 61 67 69 74 78 81","Doğu Anadolu":"04 12 13 23 24 25 30 36 44 49 62 65 75 76","Güneydoğu":"02 21 27 47 56 63 72 73 79"};
+async function profilKaydet() { yaz("am_profil", profil); sayac(); return hesapGuncelle({profil}); }
 
 // ---- Görünümler ----
 function kart(i, u) {
@@ -64,9 +78,10 @@ function kart(i, u) {
   const son = k === null ? "" : k < 0 ? "Süresi doldu" : k === 0 ? "Son gün bugün" : `${k} gün kaldı`;
   const bas = (i.kurum||i.baslik).split(/\s+/).filter(w=>w.length>2).slice(0,2).map(w=>w[0]).join("").toLocaleUpperCase("tr");
   const cip = [TUR[i.tur], i.kadro ? `${i.kadro} kadro` : "", ...i.kpss.map(x => x.min ? `${x.tur} ≥ ${x.min}` : x.tur), ...i.egitim.map(e=>EG[e])].filter(Boolean);
-  const etk = u ? `<span class="etiket e-${u.durum}">${{UYGUN:"Uygunsun",KONTROL:"Kontrol et",DEGIL:"Uygun değil"}[u.durum]}</span>` : "";
-  return `<a class="kart" href="#/ilan/${encodeURIComponent(i.id)}"><div class="ust1"><div class="logo">${esc(bas)}</div><div><div class="kurum">${esc(i.kurum)}</div><div class="kurum">${esc(i.iller.length ? i.iller.slice(0,3).map(x=>IL[x]).join(", ") + (i.iller.length>3?"…":"") : "Türkiye geneli")}</div></div></div>
-  <div class="bas">${esc(i.baslik)}</div><div class="cipler">${cip.map(c=>`<span class="cip">${esc(c)}</span>`).join("")}</div>
+  const etk = u ? `<span class="etiket e-${u.durum}">${{UYGUN:"✓ Uygunsun",KONTROL:"Kontrol et",DEGIL:"Uygun değil"}[u.durum]}</span>` : "";
+  if (acilmadi(i)) cip.unshift(`Başvuru açılışı: ${kisaT(i.basvuruBaslangic)}`);
+  return `<a class="kart ${u?.durum==="UYGUN"?"k-uygun":""}" href="#/ilan/${encodeURIComponent(i.id)}"><div class="ust1"><div class="logo">${esc(bas)}</div><div><div class="kurum">${esc(i.kurum)}</div><div class="kurum">${esc(i.iller.length ? i.iller.slice(0,3).map(x=>IL[x]).join(", ") + (i.iller.length>3?"…":"") : "Türkiye geneli")}</div></div></div>
+  <div class="bas">${esc(i.baslik)}</div><div class="cipler">${cip.map(c=>`<span class="cip ${c.startsWith("Başvuru ")?"c-yakin":""}">${esc(c)}</span>`).join("")}</div>
   <div class="alt1"><span class="son ${k!==null&&k<=2?"acil":""}">${son}</span>${etk}</div></a>`;
 }
 function filtrele(list) {
@@ -96,16 +111,29 @@ function vIlanlar() {
   <select id="f-il">${secenek(ilObj, filtre.il, "Tüm iller")}</select>
   <select id="f-puanTuru">${secenek(Object.fromEntries(PUAN.map(p=>[p,"KPSS "+p])), filtre.puanTuru, "Puan türü")}</select>
   <input id="f-puan" type="number" inputmode="decimal" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
-  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${!KULLANICI ? `<div class="panel tanit"><b>Sana uygun ilan çıktığında haber verelim.</b> Ücretsiz hesap oluştur, yeni ilanı e-posta ve anlık bildirimle ilk sen öğren. <a class="b ana kucuk" href="#/kayit">Hesap oluştur</a></div>` : ""}<a class="play" href="#" data-play><span class="play-ikon">▶</span><span><small>Android uygulaması</small><b>Google Play’de</b></span><em>Yakında</em></a><div id="liste"></div>`;
+  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${banner()}<div id="liste"></div><a class="play" href="#" data-play><span class="play-ikon">▶</span><span><small>Android uygulaması</small><b>Google Play’de</b></span><em>Yakında</em></a>`;
   const ciz = () => { const l = filtrele(ILANLAR); $("#liste").innerHTML = l.length ? l.slice(0,300).map(i => kart(i, profilVar() ? uygunluk(i, profil) : null)).join("") : `<p class="bos">Bu filtrelere uyan ilan yok.</p>`; };
   for (const k of Object.keys(filtre)) { const el = $("#f-" + k); if (el) el.addEventListener("input", () => { filtre[k] = el.value; ciz(); }); }
   ciz();
 }
+function banner() {
+  if (!KULLANICI) return `<a class="banner" href="#/kayit"><span class="b-ikon">🔔</span><div><b>Sana uygun ilanı ilk sen öğren</b><small>Ücretsiz hesap aç · e-posta ve anlık bildirim</small></div><em>Başla →</em></a>`;
+  if (!profilVar()) return `<a class="banner" href="#/profil"><span class="b-ikon">✓</span><div><b>Profilini 1 dakikada doldur</b><small>Öğrenim, KPSS puanı ve iller · sana uygun ilanları eşleştirelim</small></div><em>Doldur →</em></a>`;
+  const n = uygunlar().filter(x=>x[1].durum==="UYGUN").length;
+  return `<a class="banner" href="#/uygun"><span class="b-ikon">${n}</span><div><b>Sana uygun ${n} ilan var</b><small>Profiline göre şart şart eşleştirildi</small></div><em>Gör →</em></a>`;
+}
+function profilOzet() {
+  const p = profil, c = [p.egitim && EG[p.egitim], p.bolum, ...Object.entries(p.puanlar||{}).map(([k,v]) => `${k}: ${v}`), p.iller?.length ? (p.iller.length > 2 ? `${IL[p.iller[0]]} +${p.iller.length-1} il` : p.iller.map(x=>IL[x]).join(", ")) : "Tüm Türkiye"].filter(Boolean);
+  return `<div class="ozet-kart"><div class="cipler">${c.map(x=>`<span class="cip">${esc(x)}</span>`).join("")}</div><a class="b kucuk" href="#/profil">Düzenle</a></div>`;
+}
 function vUygun() {
-  if (!profilVar()) { $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1><div class="panel"><p>Hesap oluştur, öğrenim düzeyini, bölümünü ve KPSS puanını gir; başvurabileceğin ilanları şart şart karşılaştırarak listeleyelim ve yenileri çıktığında haber verelim.</p><a class="b ana" href="${KULLANICI ? "#/profil" : "#/kayit"}">${KULLANICI ? "Profilimi doldur" : "Ücretsiz hesap oluştur"}</a></div>`; return; }
-  const r = ILANLAR.filter(i => { const k = kalan(i.sonBasvuru); return k === null || k >= 0; }).map(i => [i, uygunluk(i, profil)]).filter(x => x[1].durum !== "DEGIL").sort((a,b) => (a[1].durum===b[1].durum ? 0 : a[1].durum==="UYGUN" ? -1 : 1) || b[1].puan - a[1].puan);
-  const uy = r.filter(x=>x[1].durum==="UYGUN").length;
-  $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1><p class="alt">${uy} ilan doğrudan uygun · ${r.length-uy} ilanda şartları kontrol et · <a href="#/profil">profili düzenle</a></p>` + (r.length ? r.map(x => kart(x[0], x[1])).join("") : `<p class="bos">Şu an profiline uyan ilan yok. Yeni ilan çıktığında bildirim alırsın.</p>`);
+  if (!profilVar()) { $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1><div class="panel bos-panel"><div class="b-ikon buyuk">✓</div><h2>Kişisel ilan listen</h2><p>Öğrenim düzeyini, bölümünü, KPSS puanını ve çalışmak istediğin illeri gir. Başvurabileceğin ilanları şart şart karşılaştırır, yenileri çıktığında anında haber veririz.</p><a class="btn birincil genis" href="${KULLANICI ? "#/profil" : "#/kayit"}">${KULLANICI ? "Profilimi doldur" : "Ücretsiz hesap oluştur"}</a></div>`; return; }
+  const r = uygunlar(), uy = r.filter(x=>x[1].durum==="UYGUN"), ko = r.filter(x=>x[1].durum!=="UYGUN");
+  $("#ana").innerHTML = `<h1>Sana <span class="vurgu">uygun</span> ilanlar</h1>${profilOzet()}
+  <div class="istat"><div><b>${uy.length}</b><span>Doğrudan uygun</span></div><div><b>${ko.length}</b><span>Şartı kontrol et</span></div><div><b>${(profil.takip||[]).length + (profil.acilis||[]).length}</b><span>Takip</span></div></div>
+  ${uy.length ? `<h2 class="bolum-bas">✓ Başvurabilirsin</h2>` + uy.map(x => kart(x[0], x[1])).join("") : ""}
+  ${ko.length ? `<h2 class="bolum-bas">Şartlarını kontrol et</h2>` + ko.map(x => kart(x[0], x[1])).join("") : ""}
+  ${r.length ? "" : `<p class="bos">Şu an profiline uyan ilan yok. Yeni ilan çıktığında e-posta ve bildirimle haber vereceğiz.</p>`}`;
 }
 function vKayitli() {
   const l = ILANLAR.filter(i => kayit.includes(i.id));
@@ -113,23 +141,52 @@ function vKayitli() {
 }
 async function vIlan(id) {
   const i = ILANLAR.find(x => x.id === id); if (!i) { $("#ana").innerHTML = `<p class="bos">İlan bulunamadı. <a href="#/">Tüm ilanlar</a></p>`; return; }
-  const k = kalan(i.sonBasvuru), kayitli = kayit.includes(i.id);
+  const k = kalan(i.sonBasvuru);
+  const unv = [...new Set((i.unvanlar||[]).length ? i.unvanlar : [i.baslik])].slice(0, 25);
+  let tk = (profil.takip||[]).find(t => t.id === i.id), tKurum = tk ? !!tk.kurum : false, tIl = tk ? tk.profilIlleri !== false : true;
   const ciz = (detay) => {
-    const u = profilVar() ? uygunluk(i, profil, detay) : null;
-    $("#ana").innerHTML = `<p><a href="#/">← İlanlar</a></p><div class="panel"><div class="kurum">${esc(i.kurum)}</div><h1 style="font-size:24px">${esc(i.baslik)}</h1>
-    <div class="cipler" style="margin:8px 0">${[TUR[i.tur], i.kadro?`${i.kadro} kadro`:"", ...i.egitim.map(e=>EG[e])].filter(Boolean).map(c=>`<span class="cip">${esc(c)}</span>`).join("")}</div>
-    <p><b>Son başvuru:</b> ${i.sonBasvuru ? `${tarih(i.sonBasvuru)} ${k!==null ? `(${k<0?"süresi doldu":k===0?"bugün":k+" gün kaldı"})` : ""}` : "İlan metninde"}<br>
-    <b>KPSS:</b> ${i.kpssGerekli===false ? "Şart yok" : i.kpss.length ? i.kpss.map(x=>x.min?`${x.tur} ≥ ${x.min}`:x.tur).join(", ") : "İlan metninde"}<br>
-    <b>Kadro yeri:</b> ${i.iller.length ? i.iller.map(x=>IL[x]).join(", ") : "Türkiye geneli / ilan metninde"}${i.unvanlar?.length ? `<br><b>Unvanlar:</b> ${esc(i.unvanlar.slice(0,12).join(", "))}` : ""}</p>
-    <div class="arac eylem"><a class="b ana" style="text-decoration:none" href="${esc(i.url)}" target="_blank" rel="noopener">Resmî ilana git ↗</a>
-    <button class="b" id="kaydet">${kayitli ? "Kaydedildi ✓" : "Kaydet"}</button>
-    ${i.sonBasvuru ? `<a class="b" style="text-decoration:none" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Son başvuru: " + i.baslik)}&dates=${i.sonBasvuru.replace(/-/g,"")}/${i.sonBasvuru.replace(/-/g,"")}">Takvime ekle</a>` : ""}</div></div>
-    ${u ? `<div class="panel"><h2>Sana uygun mu? <span class="etiket e-${u.durum}">${{UYGUN:"Uygunsun",KONTROL:"Kontrol et",DEGIL:"Uygun değil"}[u.durum]}</span></h2><ul class="gerekce">${u.g.map(([s,m]) => `<li>${s==="E"?"✅":s==="H"?"❌":"⚠️"} ${esc(m)}</li>`).join("")}</ul></div>` : `<div class="panel">Profilini oluşturursan bu ilanın şartlarını seninle karşılaştırırız. <a href="#/profil">Profil oluştur</a></div>`}
+    const u = profilVar() ? uygunluk(i, profil, detay) : null, kayitli = kayit.includes(i.id), takipte = (profil.acilis||[]).includes(i.id);
+    tk = (profil.takip||[]).find(t => t.id === i.id);
+    const son = i.sonBasvuru ? `${tarih(i.sonBasvuru)}${k!==null ? ` · ${k<0?"süresi doldu":k===0?"son gün bugün":k+" gün kaldı"}` : ""}` : "İlan metninde";
+    $("#ana").innerHTML = `<a class="geri" href="#/">← İlanlar</a>
+    <div class="panel hero"><div class="kurum">${esc(i.kurum)}</div><h1 class="ilan-bas">${esc(i.baslik)}</h1>
+    <div class="cipler">${[TUR[i.tur], i.kadro?`${i.kadro} kadro`:"", ...i.egitim.map(e=>EG[e])].filter(Boolean).map(c=>`<span class="cip">${esc(c)}</span>`).join("")}${u ? `<span class="etiket e-${u.durum}">${{UYGUN:"✓ Uygunsun",KONTROL:"Kontrol et",DEGIL:"Uygun değil"}[u.durum]}</span>` : ""}</div>
+    <div class="bilgi"><div class="${k!==null&&k<=2&&k>=0?"acil":""}"><span>Son başvuru</span><b>${son}</b></div>
+    ${i.basvuruBaslangic ? `<div><span>Başvuru başlangıcı</span><b>${tarih(i.basvuruBaslangic)}</b></div>` : ""}
+    <div><span>KPSS</span><b>${i.kpssGerekli===false ? "Şart yok" : i.kpss.length ? i.kpss.map(x=>x.min?`${x.tur} ≥ ${x.min}`:x.tur).join(", ") : "İlan metninde"}</b></div>
+    <div><span>Kadro yeri</span><b>${i.iller.length ? esc(i.iller.map(x=>IL[x]).join(", ")) : "Türkiye geneli"}</b></div></div>
+    ${i.unvanlar?.length ? `<p class="not"><b>Unvanlar:</b> ${esc(i.unvanlar.slice(0,12).join(", "))}${i.unvanlar.length>12?"…":""}</p>` : ""}
+    <div class="eylem"><a class="btn birincil" href="${esc(i.url)}" target="_blank" rel="noopener">${acilmadi(i) ? "Resmî ilanı aç ↗" : "Başvur · Resmî ilan ↗"}</a>
+    <button class="btn ikincil ${kayitli?"secili":""}" id="kaydet" aria-pressed="${kayitli}">${kayitli ? "★ Kaydedildi" : "☆ Kaydet"}</button></div>
+    ${i.sonBasvuru ? `<a class="takvim" target="_blank" rel="noopener" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Son başvuru: " + i.baslik)}&dates=${i.sonBasvuru.replace(/-/g,"")}/${i.sonBasvuru.replace(/-/g,"")}">📅 Son başvuruyu takvime ekle</a>` : ""}</div>
+    ${acilmadi(i) ? `<div class="panel acilis-kart"><div class="a-ikon">⏳</div><div class="a-metin"><b>Başvurular ${tarih(i.basvuruBaslangic)} tarihinde açılıyor</b><span>Açıldığı anda e-posta ve anlık bildirim gönderelim.</span></div><button class="btn ${takipte?"ikincil secili":"birincil"}" id="acilis">${takipte ? "✓ Haber verilecek" : "Açılınca haber ver"}</button></div>` : ""}
+    ${u ? `<div class="panel"><h2>Sana uygun mu?</h2><ul class="gerekce">${u.g.map(([s,m]) => `<li class="g-${s}"><i>${s==="E"?"✓":s==="H"?"✕":"!"}</i>${esc(m)}</li>`).join("")}</ul></div>` : `<a class="banner" href="${KULLANICI?"#/profil":"#/kayit"}"><span class="b-ikon">✓</span><div><b>Bu ilana uygun musun?</b><small>Profilini doldur, şartları seninle karşılaştıralım</small></div><em>→</em></a>`}
+    <div class="panel takip-kart"><h2>🔔 Benzer ilanlar çıkınca haber al</h2><p class="not">Seçtiğin unvanda yeni ilan yayımlandığı anda e-posta ve bildirim gelir.</p>
+     <label class="alan">Unvan<select id="t-unvan">${unv.map(x=>`<option ${tk?.unvanlar?.[0]===x?"selected":""}>${esc(x)}</option>`).join("")}</select></label>
+     <div class="secim"><span>Kurum</span><div class="segment" id="s-kurum"><button data-v="1" class="${tKurum?"on":""}">Yalnız bu kurum</button><button data-v="0" class="${tKurum?"":"on"}">Tümü</button></div></div>
+     <div class="secim"><span>İl</span><div class="segment" id="s-il"><button data-v="1" class="${tIl?"on":""}">Profilimdeki iller</button><button data-v="0" class="${tIl?"":"on"}">Tüm Türkiye</button></div></div>
+     <button class="btn ${tk?"ikincil secili":"birincil"} genis" id="t-al">${tk ? "✓ Bildirim açık · güncelle" : "🔔 Bildirim al"}</button>
+     ${tk ? `<button class="metin-btn" id="t-sil">Takibi bırak</button>` : ""}<div class="durum" id="t-durum"></div></div>
     <div class="panel"><h2>İlan özeti</h2><div class="metin">${esc(detay || i.ozet || "Ayrıntılar resmî ilan metnindedir.")}</div><p class="not">Özet resmî metinden otomatik çıkarılmıştır; başvurmadan önce resmî ilanı oku.</p></div>`;
-    $("#kaydet").onclick = () => { kayit = kayit.includes(i.id) ? kayit.filter(x => x !== i.id) : [...kayit, i.id]; yaz("am_kayit", kayit); hesapGuncelle({kayit}); ciz(detay); };
+    $("#kaydet").onclick = () => { kayit = kayit.includes(i.id) ? kayit.filter(x => x !== i.id) : [...kayit, i.id]; yaz("am_kayit", kayit); hesapGuncelle({kayit}); ciz(detay); toast(kayit.includes(i.id) ? "Kaydedildi" : "Kayıttan çıkarıldı", kayit.includes(i.id) ? "Kayıtlı sekmesinde bulabilirsin." : ""); };
+    const girisGerek = () => { if (KULLANICI) return false; toast("Ücretsiz hesap gerekli", "Bildirim gönderebilmemiz için hesap oluştur."); setTimeout(() => location.hash = "#/kayit", 900); return true; };
+    const izinIste = async () => { if (HESAP?.push) return; try { const s = await pushAboneligi(); if (s) await hesapGuncelle({push:s.toJSON()}); } catch {} };
+    const ac = $("#acilis"); if (ac) ac.onclick = async () => { if (girisGerek()) return;
+      const l = profil.acilis || []; profil.acilis = l.includes(i.id) ? l.filter(x => x !== i.id) : [...l, i.id];
+      const r = await profilKaydet(); if (r.error) return toast("Kaydedilemedi", r.error.message);
+      if (profil.acilis.includes(i.id)) { await hesapGuncelle({bildirim:true}); toast("Haber vereceğiz", `Başvurular ${tarih(i.basvuruBaslangic)} tarihinde açılınca e-posta ve bildirim gelecek.`); izinIste(); }
+      ciz(detay); };
+    for (const [sid, f] of [["#s-kurum", v => tKurum = v], ["#s-il", v => tIl = v]])
+      $(sid).querySelectorAll("button").forEach(b => b.onclick = () => { f(b.dataset.v === "1"); $(sid).querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); });
+    $("#t-al").onclick = async () => { if (girisGerek()) return;
+      const t = {id:i.id, unvanlar:[$("#t-unvan").value], kurum: tKurum ? i.kurum : "", profilIlleri: tIl};
+      profil.takip = [...(profil.takip||[]).filter(x => x.id !== i.id), t];
+      const r = await profilKaydet(); if (r.error) return toast("Kaydedilemedi", r.error.message);
+      await hesapGuncelle({bildirim:true}); toast("Bildirim açık", `“${t.unvanlar[0]}” ilanı çıkınca anında haber vereceğiz.`); izinIste(); ciz(detay); };
+    const ts = $("#t-sil"); if (ts) ts.onclick = async () => { profil.takip = (profil.takip||[]).filter(x => x.id !== i.id); await profilKaydet(); toast("Takip bırakıldı", ""); ciz(detay); };
   };
   ciz(null);
-  try { const r = await fetch(`data/ilan/${encodeURIComponent(id)}.json`); if (r.ok) ciz((await r.json()).metin); } catch {}
+  try { const r = await fetch(`data/ilan/${encodeURIComponent(id)}.json`); if (r.ok) { const m = (await r.json()).metin; if (location.hash.includes(encodeURIComponent(id))) ciz(m); } } catch {}
 }
 async function vGundem() {
   $("#ana").innerHTML = `<h1>KPSS <span class="vurgu">gündemi</span></h1><div id="g"><p class="bos">Yükleniyor…</p></div>`;
@@ -163,7 +220,7 @@ async function hesapYukle() {
   }
   HESAP = data;
   if (data) { profil = Object.assign({egitim:"", bolum:"", puanlar:{}, iller:[]}, data.profil || {}); kayit = data.kayit || []; yaz("am_profil", profil); yaz("am_kayit", kayit); }
-  ustHesap();
+  ustHesap(); sayac();
 }
 const hesapGuncelle = alan => KULLANICI && HESAP ? db.from("profiller").update({...alan, guncelleme:new Date().toISOString()}).eq("id", KULLANICI.id).then(r => { if (!r.error) Object.assign(HESAP, alan); return r; }) : Promise.resolve({});
 
@@ -222,17 +279,25 @@ function vProfil() {
    <label>Öğrenim düzeyi<select id="p-egitim">${secenek(EG, profil.egitim, "Seç")}</select></label>
    <label>Bölüm (varsa)<input id="p-bolum" value="${esc(profil.bolum)}" placeholder="ör. Bilgisayar Mühendisliği"></label>
    ${PUAN.map(p => `<label>KPSS ${p}<input type="number" inputmode="decimal" step="0.001" data-puan="${p}" value="${profil.puanlar?.[p] ?? ""}" placeholder="yoksa boş"></label>`).join("")}
-  </div><label style="margin-top:12px">Çalışmak istediğin iller (boş = tüm Türkiye)</label><div class="iller">${ilSirali().map(([k,v]) => `<label><input type="checkbox" value="${k}" ${profil.iller.includes(k)?"checked":""}>${v}</label>`).join("")}</div>
+  </div><div class="ilsec" id="ilsec"></div>
   <div class="arac" style="margin-top:12px"><button class="b ana genis" id="p-kaydet">Profili kaydet</button></div><div class="durum" id="p-durum"></div></div>
+  <div class="panel"><h2>🔔 Takiplerim</h2><div id="takipler"></div></div>
   <div class="panel"><h2>Hesap bilgileri</h2><div class="izgara"><label>Ad *<input id="h-ad" value="${esc(H.ad||"")}"></label><label>Soyad *<input id="h-soyad" value="${esc(H.soyad||"")}"></label></div>
   <label>Telefon *<input id="h-tel" type="tel" inputmode="tel" value="${esc(H.telefon||"")}"></label><div class="arac" style="margin-top:10px"><button class="b" id="h-kaydet">Bilgileri güncelle</button></div><div class="durum" id="h-durum"></div></div>`;
   const yazD = (id, m, hata) => { const d = $(id); d.textContent = m; d.classList.toggle("hata", !!hata); };
+  const secili = new Set(profil.iller || []); ilSecici($("#ilsec"), secili);
+  const takipCiz = () => {
+    const t = (profil.takip||[]).map(x => `<li><div><b>${esc(x.unvanlar?.[0]||"")}</b><small>${esc(x.kurum || "Tüm kurumlar")} · ${x.profilIlleri===false ? "Tüm Türkiye" : "Profilimdeki iller"}</small></div><button class="sil" data-t="${esc(x.id)}" aria-label="Kaldır">✕</button></li>`);
+    const a = (profil.acilis||[]).map(id => { const i = ILANLAR.find(x => x.id === id); return i ? `<li><div><b>⏳ ${esc(i.baslik)}</b><small>Başvuru açılınca haber · ${i.basvuruBaslangic ? tarih(i.basvuruBaslangic) : ""}</small></div><button class="sil" data-a="${esc(id)}" aria-label="Kaldır">✕</button></li>` : ""; });
+    $("#takipler").innerHTML = t.length + a.length ? `<ul class="takip-liste">${t.join("")}${a.join("")}</ul>` : `<p class="not">Henüz takip yok. İlan detayında “Bildirim al” ya da “Açılınca haber ver”e bas.</p>`;
+    $("#takipler").querySelectorAll(".sil").forEach(b => b.onclick = async () => { if (b.dataset.t) profil.takip = profil.takip.filter(x => x.id !== b.dataset.t); else profil.acilis = profil.acilis.filter(x => x !== b.dataset.a); await profilKaydet(); takipCiz(); });
+  };
+  takipCiz();
   $("#cikis").onclick = async e => { e.preventDefault(); await db.auth.signOut(); KULLANICI = HESAP = null; ustHesap(); location.hash = "#/"; };
   $("#p-kaydet").onclick = async () => {
-    const p = {egitim:$("#p-egitim").value, bolum:$("#p-bolum").value.trim(), puanlar:{}, iller:[...document.querySelectorAll(".iller input:checked")].map(x=>x.value)};
+    const p = {...profil, egitim:$("#p-egitim").value, bolum:$("#p-bolum").value.trim(), puanlar:{}, iller:[...secili]};
     document.querySelectorAll("[data-puan]").forEach(x => { if (x.value) p.puanlar[x.dataset.puan] = +x.value; });
-    profil = p; yaz("am_profil", p);
-    const r = await hesapGuncelle({profil:p}); if (r.error) return yazD("#p-durum", "Kaydedilemedi: " + r.error.message, 1);
+    profil = p; const r = await profilKaydet(); if (r.error) return yazD("#p-durum", "Kaydedilemedi: " + r.error.message, 1);
     yazD("#p-durum", "✓ Profil kaydedildi."); setTimeout(() => location.hash = "#/uygun", 700);
   };
   $("#b-eposta").onchange = async e => { const r = await hesapGuncelle({bildirim:e.target.checked}); yazD("#b-durum", r.error ? r.error.message : e.target.checked ? "✓ E-posta bildirimi açık." : "E-posta bildirimi kapatıldı.", !!r.error); };
@@ -249,6 +314,37 @@ function vProfil() {
     if (!telOk(tel)) return yazD("#h-durum", "Telefon numarasını 05xx xxx xx xx biçiminde yaz.", 1);
     const r = await hesapGuncelle({ad, soyad, telefon:telDuz(tel)}); yazD("#h-durum", r.error ? r.error.message : "✓ Güncellendi.", !!r.error); ustHesap();
   };
+}
+function ilSecici(kok, secili) {
+  const sirali = ilSirali();
+  kok.innerHTML = `<div class="ilsec-ust"><div><b>Çalışmak istediğin iller</b><small id="il-say"></small></div>
+   <label class="anahtar"><input type="checkbox" id="il-tum"><span></span>Tüm Türkiye</label></div>
+   <div id="il-govde"><div class="secililer" id="il-secili"></div>
+   <input type="search" id="il-ara" class="il-ara" placeholder="İl ara… (ör. İzmir)" autocomplete="off">
+   <div class="bolgeler">${Object.keys(BOLGE).map(b => `<button type="button" data-b="${b}">${b}</button>`).join("")}</div>
+   <div class="il-liste" id="il-liste"></div></div>`;
+  let ara = "";
+  const ciz = () => {
+    const tum = $("#il-tum").checked;
+    $("#il-govde").hidden = tum;
+    $("#il-say").textContent = tum || !secili.size ? "İl fark etmez · tüm ilanlar" : `${secili.size} il seçili`;
+    $("#il-secili").innerHTML = [...secili].sort((a,b) => IL[a].localeCompare(IL[b],"tr")).map(k => `<button type="button" class="secili-cip" data-k="${k}">${IL[k]} <i>✕</i></button>`).join("") || `<span class="not">Henüz il seçmedin. Aşağıdan dokunarak seç.</span>`;
+    const a = katla(ara);
+    $("#il-liste").innerHTML = sirali.filter(([,v]) => !a || katla(v).includes(a)).map(([k,v]) => `<button type="button" class="ilcip ${secili.has(k)?"on":""}" data-k="${k}">${secili.has(k)?"✓ ":""}${v}</button>`).join("") || `<span class="not">Eşleşen il yok.</span>`;
+    kok.querySelectorAll(".bolgeler button").forEach(b => { const l = BOLGE[b.dataset.b].split(" "); b.classList.toggle("on", l.every(x => secili.has(x))); });
+  };
+  $("#il-tum").checked = !secili.size;
+  $("#il-tum").onchange = e => { if (e.target.checked) secili.clear(); ciz(); };
+  $("#il-ara").oninput = e => { ara = e.target.value; ciz(); };
+  kok.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.k) { secili.has(b.dataset.k) ? secili.delete(b.dataset.k) : secili.add(b.dataset.k); }
+    else if (b.dataset.b) { const l = BOLGE[b.dataset.b].split(" "); const hepsi = l.every(x => secili.has(x)); l.forEach(x => hepsi ? secili.delete(x) : secili.add(x)); }
+    else return;
+    if (secili.size) $("#il-tum").checked = false;
+    ciz();
+  });
+  ciz();
 }
 function vGizlilik() {
   $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş olarak), profil tercihlerin (öğrenim, bölüm, KPSS puanı, il), kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi Supabase'de saklanır.</p><p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, paylaşılmaz. Telefon numarası yalnızca hesap bilgisi olarak saklanır, SMS gönderilmez.</p><p>E-posta bildirimini Hesabım sayfasından ya da her e-postadaki bağlantıdan kapatabilirsin. Hesabının ve tüm verilerinin silinmesi için <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a> adresine yaz. Sitede analiz veya izleme aracı yoktur.</p></div>`;
@@ -275,6 +371,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   catch { $("#ana").innerHTML = `<p class="bos">İlanlar yüklenemedi. İnternet bağlantını kontrol et.</p>`; }
   try { await hesapYukle(); } catch {}
   db.auth.onAuthStateChange(async (ev) => { if (ev === "PASSWORD_RECOVERY") { const y = prompt("Yeni şifreni yaz (en az 6 karakter):"); if (y) { const r = await db.auth.updateUser({password:y}); alert(r.error ? r.error.message : "Şifren güncellendi."); } } });
+  sayac();
   if (q) return iptal(q);
   addEventListener("hashchange", yonlendir); yonlendir();
 })();

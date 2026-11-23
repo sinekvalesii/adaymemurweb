@@ -111,7 +111,7 @@ function vIlanlar() {
   <select id="f-il">${secenek(ilObj, filtre.il, "Tüm iller")}</select>
   <select id="f-puanTuru">${secenek(Object.fromEntries(PUAN.map(p=>[p,"KPSS "+p])), filtre.puanTuru, "Puan türü")}</select>
   <input id="f-puan" type="number" inputmode="decimal" step="0.01" placeholder="Puanın" style="width:110px" value="${esc(filtre.puan)}">
-  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${banner()}<div id="liste"></div><a class="play" href="#" data-play><span class="play-ikon">▶</span><span><small>Android uygulaması</small><b>Google Play’de</b></span><em>Yakında</em></a>`;
+  <select id="f-siralama">${secenek({sonGun:"Son başvurusu yakın",kadro:"En çok kadro"}, filtre.siralama, "En yeni")}</select></div>${banner()}<div id="liste"></div>`;
   const ciz = () => { const l = filtrele(ILANLAR); $("#liste").innerHTML = l.length ? l.slice(0,300).map(i => kart(i, profilVar() ? uygunluk(i, profil) : null)).join("") : `<p class="bos">Bu filtrelere uyan ilan yok.</p>`; };
   for (const k of Object.keys(filtre)) { const el = $("#f-" + k); if (el) el.addEventListener("input", () => { filtre[k] = el.value; ciz(); }); }
   ciz();

@@ -377,7 +377,15 @@ async function vSifre() {
     yazD("✓ Şifren güncellendi. Yönlendiriliyorsun…"); await hesapYukle(); setTimeout(() => location.hash = "#/profil", 900); };
 }
 function vGizlilik() {
-  $("#ana").innerHTML = `<h1>Gizlilik</h1><div class="panel"><p>İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş olarak), profil tercihlerin (öğrenim, bölüm, KPSS puanı, il), kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi Supabase'de saklanır.</p><p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, paylaşılmaz. Telefon numarası yalnızca hesap bilgisi olarak saklanır, SMS gönderilmez.</p><p>E-posta bildirimini Hesabım sayfasından ya da her e-postadaki bağlantıdan kapatabilirsin. Hesabını ve tüm verilerini Hesabım sayfasındaki “Hesabımı kalıcı olarak sil” ile ya da <a href="mailto:selcukyuss@gmail.com">selcukyuss@gmail.com</a> adresine yazarak silebilirsin. Sitede analiz veya izleme aracı yoktur.</p></div>`;
+  $("#ana").innerHTML = `<h1>Gizlilik ve <span class="vurgu">hesap silme</span></h1>
+  <div class="panel"><h2>Aday Memur — toplanan veriler</h2><p>Bu metin Aday Memur internet sitesi ve Aday Memur Android uygulaması (geliştirici: selcukyus) için geçerlidir. İlanlara hesapsız bakabilirsin. Hesap oluşturursan ad, soyad, telefon, e-posta, şifre (şifrelenmiş), profil tercihlerin (öğrenim, bölüm, KPSS puanı, iller), takiplerin, kayıtlı ilanların ve bildirim izni verdiğin cihazın bildirim adresi saklanır.</p>
+  <p>Bu bilgiler yalnızca hesabını sunmak ve sana uygun yeni ilanları e-posta (Brevo) ve anlık bildirimle iletmek için kullanılır; satılmaz, reklam için paylaşılmaz. Telefon numarasına SMS gönderilmez. Sitede analiz veya izleme aracı yoktur.</p></div>
+  <div class="panel" id="hesap-silme"><h2>Hesabını ve verilerini silme</h2>
+  <p><b>Uygulamada:</b> Aday Memur uygulaması → Hesap sekmesi → Hesabım → “Hesabımı sil” → “Kalıcı olarak sil”.</p>
+  <p><b>Sitede:</b> Giriş yap → Hesabım → Hesap bilgileri → “Hesabımı kalıcı olarak sil”.</p>
+  <p><b>E-postayla:</b> Kayıtlı e-posta adresinden <a href="mailto:selcukyuss@gmail.com?subject=Aday%20Memur%20hesap%20silme">selcukyuss@gmail.com</a> adresine “hesabımı sil” yaz; talep en geç 7 gün içinde işlenir.</p>
+  <p><b>Silinen veriler:</b> ad, soyad, telefon, e-posta, şifre, profil tercihleri, takipler, kayıtlı ilanlar ve bildirim adresi. Silme anında ve kalıcıdır; yedeklerde veri tutulmaz. Google Play aboneliği ayrı yönetilir; aboneliği Google Play → Abonelikler bölümünden iptal etmelisin.</p>
+  <p>E-posta bildirimini kapatmak için Hesabım sayfasındaki seçeneği ya da her e-postadaki bağlantıyı kullanabilirsin.</p></div>`;
 }
 async function iptal(t) {
   $("#ana").innerHTML = `<p class="bos">İşleniyor…</p>`;

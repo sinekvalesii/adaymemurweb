@@ -5,4 +5,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install pdfplumber && python tercih/probe.py
+      - run: pip install pdfplumber && python tercih/olustur.py tercih.json && ls -la tercih.json && python -c "import json;d=json.load(open('tercih.json'));print(d['kadrolar'][:2])"
+      - uses: actions/upload-artifact@v4
+        with: { name: tercih, path: tercih.json }

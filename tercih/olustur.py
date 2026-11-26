@@ -9,6 +9,7 @@ DUZEY = {"ort": ("ortaogretim", "P94"), "onl": ("onlisans", "P93"), "lis": ("lis
 DONEMLER = {
     "2025/2": "https://osym.gov.tr/kpss20252-bazi-kamu-kurum-ve-kuruluslarin-kadro-ve-pozisyonlarina-yerlestirme-sonuclarina-iliskin-sayisal-bilgiler",
     "2026/1": "ARA:kpss-20261",
+    "2026/2": "ARA:kpss-20262",
 }
 
 def al(u):
@@ -49,10 +50,14 @@ def pdfleri_bul(kaynak):
     return [l for l in baglantilar(h) if l.lower().endswith(".pdf")]
 
 def duzey_bul(url, ilk_metin):
-    u = url.lower(); t = ilk_metin.upper()
-    if "ort" in u.rsplit("/", 1)[-1] or "ORTAÖĞRETİM" in t: return "ort"
-    if "onl" in u.rsplit("/", 1)[-1] or "ÖN LİSANS" in t: return "onl"
-    if "lis" in u.rsplit("/", 1)[-1] or "LİSANS" in t: return "lis"
+    f = url.lower().rsplit("/", 1)[-1]
+    if "ort" in f: return "ort"
+    if "onl" in f or "on-l" in f: return "onl"
+    if "lis" in f or "lsans" in f: return "lis"
+    t = ilk_metin.replace("İ", "I").upper()
+    if "ORTA" in t: return "ort"
+    if "ÖN LISANS" in t or "ON LISANS" in t: return "onl"
+    if "LISANS" in t: return "lis"
     return None
 
 def sayi(s):

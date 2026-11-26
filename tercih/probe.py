@@ -1,16 +1,11 @@
 import re, urllib.request, io
-import pdfplumber
-UA={"User-Agent":"Mozilla/5.0"}
-def al(u): return urllib.request.urlopen(urllib.request.Request(u,headers=UA),timeout=90).read()
+UA={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36","Referer":"https://osym.gov.tr/"}
+def al(u): 
+    r=urllib.request.urlopen(urllib.request.Request(u,headers=UA),timeout=90); return r.geturl(), r.headers.get("content-type"), r.read()
 s="https://osym.gov.tr/kpss20261-bazi-kamu-kurum-ve-kuruluslarinin-kadro-ve-pozisyonlarina-yerlestirme-sonuclarina-iliskin-sayisal-bilgiler"
-for slug in [s, s.replace("kuruluslarinin","kuruluslarin")]:
-    try:
-        h=al(slug).decode("utf-8","ignore"); print("OK",slug); [print("L",l) for l in sorted(set(re.findall(r'href="([^"]+\.pdf)"',h))) if "KPSS" in l]
-    except Exception as e: print("ERR",slug,e)
+_,_,h=al(s); h=h.decode("utf-8","ignore")
+for l in sorted(set(re.findall(r'(?:href|src)="([^"]+)"',h))):
+    if "2026" in l and ("KPSS" in l.upper() or "minmax" in l.lower() or "sayisal" in l.lower()): print("L",l)
+print("TITLE", re.findall(r"<title>(.*?)</title>",h))
 u="https://dokuman.osym.gov.tr/pdfdokuman/2025/KPSS/TERCIH2/minmaxort07012025.pdf"
-with pdfplumber.open(io.BytesIO(al(u))) as pdf:
-    print("PAGES",len(pdf.pages))
-    p=pdf.pages[0]; print(p.extract_text()[:1500])
-    for t in p.extract_tables()[:1]:
-        for r in t[:8]: print("ROW",r)
-    print("LAST", pdf.pages[-1].extract_text()[-600:])
+url,ct,b=al(u); print("GOT",url,ct,len(b),b[:200])

@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r pipeline/requirements.txt pywebpush
+      - run: pip install -r pipeline/requirements.txt pywebpush google-auth
       - name: Önceki ilan listesi
         run: curl -sf "$SITE_URL/data/ilanlar.json" -o /tmp/eski.json || echo '{}' > /tmp/eski.json
       - name: İlanları topla
@@ -53,4 +53,5 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+          FCM_SA: ${{ secrets.FCM_SA }}
         run: python notify/bildir.py /tmp/eski.json _site/data/ilanlar.json

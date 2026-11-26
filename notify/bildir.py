@@ -176,6 +176,55 @@ def main(eski_yol, yeni_yol):
         sayac[0] += e_ok
         sayac[1] += p_ok
     print(f"E-posta: {sayac[0]}, push: {sayac[1]}, hoş geldin: {sayac[2]}")
+    try:
+        uygulama_bildirimleri(taze, acilan)
+    except Exception as e:
+        print("FCM hatası:", e)
+
+
+def fcm_erisim():
+    """FCM HTTP v1 erişim anahtarı (GitHub secret FCM_SA: Firebase hizmet hesabı JSON)."""
+    sa = os.environ.get("FCM_SA")
+    if not sa:
+        return None, None
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+    bilgi = json.loads(sa)
+    c = service_account.Credentials.from_service_account_info(bilgi, scopes=["https://www.googleapis.com/auth/firebase.messaging"])
+    c.refresh(Request())
+    return c.token, bilgi["project_id"]
+
+
+def fcm_gonder(erisim, proje, token, baslik, metin, ilan_id):
+    r = requests.post(f"https://fcm.googleapis.com/v1/projects/{proje}/messages:send",
+        headers={"Authorization": f"Bearer {erisim}"},
+        json={"message": {"token": token, "android": {"priority": "high"},
+              "data": {"baslik": baslik[:120], "metin": metin[:240], "ilanId": ilan_id or ""}}}, timeout=20)
+    if r.status_code in (404, 400) and ("UNREGISTERED" in r.text or "INVALID_ARGUMENT" in r.text):
+        sb("DELETE", f"cihazlar?token=eq.{token}")
+    return r.ok
+
+
+def uygulama_bildirimleri(taze, acilan):
+    """Android uygulamasındaki Pro kullanıcılara anında bildirim (Firebase Cloud Messaging)."""
+    erisim, proje = fcm_erisim()
+    if not erisim or not (taze or acilan):
+        return
+    cihazlar = sb("GET", "cihazlar?select=token,profil,pro&pro=eq.true").json()
+    n = 0
+    for c in cihazlar:
+        p = c.get("profil") or {}
+        ac = [i for i in acilan if i["id"] in (p.get("acilis") or [])]
+        for i in ac[:3]:
+            n += fcm_gonder(erisim, proje, c["token"], f"Başvurular açıldı: {i['baslik'][:80]}", i.get("kurum", ""), i["id"])
+        es = [(i, d) for i in taze if (d := uygun(i, p))]
+        es.sort(key=lambda x: x[1] != "UYGUN")
+        for i, d in es[:3]:
+            n += fcm_gonder(erisim, proje, c["token"], ("Sana uygun yeni ilan: " if d == "UYGUN" else "Yeni ilan: ") + i["baslik"][:80],
+                            i.get("kurum", "") + (f" · Son başvuru {i['sonBasvuru']}" if i.get("sonBasvuru") else ""), i["id"])
+        if len(es) > 3:
+            n += fcm_gonder(erisim, proje, c["token"], f"{len(es)} yeni ilan sana uygun", "Tümünü görmek için dokun", "")
+    print(f"Uygulama bildirimi: {n}")
 
 
 if __name__ == "__main__":
